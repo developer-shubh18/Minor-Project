@@ -61,7 +61,38 @@
           @if (msg._isLastInGroup) {
           <div class="bubble-tail"></div>
           }
+
           <p class="msg-text">{{ getMessageText(msg) }}</p>
+
+          <!-- Translation Toggle -->
+          @if (canTranslate(msg)) {
+          <div class="translation-toggle" (click)="toggleTranslation(msg); $event.stopPropagation()">
+            @if (isTranslationLoading(msg)) {
+            <div class="translate-loading">
+              <span class="translate-spinner"></span>
+              <span class="translate-label">Translating...</span>
+            </div>
+            } @else {
+            <button class="translate-btn" [class.active]="isShowingTranslated(msg)">
+              <!-- Translate icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m5 8 6 6" />
+                <path d="m4 14 6-6 2-3" />
+                <path d="M2 5h12" />
+                <path d="M7 2h1" />
+                <path d="m22 22-5-10-5 10" />
+                <path d="M14 18h6" />
+              </svg>
+              <span class="translate-label">{{ getTranslationLabel(msg) }}</span>
+            </button>
+            }
+            @if (isShowingTranslated(msg) && getLanguageLabel(msg)) {
+            <span class="lang-badge">{{ getLanguageLabel(msg) }}</span>
+            }
+          </div>
+          }
+
           <div class="msg-meta">
             <span class="msg-time">{{ msg.createdAt | date:'shortTime' }}</span>
             @if (isOwnMessage(msg)) {

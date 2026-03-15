@@ -1,6 +1,7 @@
 const Room = require('../models/Room');
 const Message = require('../models/Message');
 const User = require('../models/User');
+const { translateText, detectLanguage, getSupportedLanguages: fetchLanguages } = require('../services/translationService');
 
 exports.getRooms = async (req, res) => {
   try {
@@ -71,3 +72,53 @@ exports.searchUsers = async (req, res) => {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
+
+// Get supported languages from LibreTranslate
+exports.getSupportedLanguages = async (req, res) => {
+  try {
+    const languages = await fetchLanguages();
+    res.json({ status: 'success', languages });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// On-demand translate a single message
+exports.translateMessage = async (req, res) => {
+  try {
+    const { text, targetLanguage, sourceLanguage } = req.body;
+
+    if (!text || !targetLanguage) {
+      return res.status(400).json({ status: 'error', message: 'text and targetLanguage are required' });
+    }
+
+    // Detect source language if not provided
+    const detectedSource = sourceLanguage || await detectLanguage(text);
+    
+    // If source and target are the same, return original
+    if (detectedSource === targetLanguage) {
+      return res.json({
+        status: 'success',
+        translation: {
+          translatedText: text,
+          detectedLanguage: detectedSource,
+          targetLanguage
+        }
+      });
+    }
+
+    const translatedText = await translateText(text, targetLanguage, detectedSource);
+    
+    res.json({
+      status: 'success',
+      translation: {
+        translatedText,
+        detectedLanguage: detectedSource,
+        targetLanguage
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+

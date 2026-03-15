@@ -1,14 +1,23 @@
-const { Translate } = require('@google-cloud/translate').v2;
+const axios = require('axios');
 
-const translate = new Translate({ key: process.env.GOOGLE_TRANSLATE_API_KEY });
+const LIBRE_TRANSLATE_URL = process.env.LIBRE_TRANSLATE_URL || 'https://libretranslate.de';
 
 // Detect language of text
 exports.detectLanguage = async (text) => {
   try {
-    const [detection] = await translate.detect(text);
-    return detection.language;
+    const response = await axios.post(`${LIBRE_TRANSLATE_URL}/detect`, {
+      q: text
+    }, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    // Response is an array of detections sorted by confidence
+    if (response.data && response.data.length > 0) {
+      return response.data[0].language;
+    }
+    return 'en';
   } catch (err) {
-    console.error('Language detection errors:', err.message);
+    console.error('Language detection error:', err.message);
     return 'en';
   }
 };
@@ -16,11 +25,18 @@ exports.detectLanguage = async (text) => {
 // Translate text to target language
 exports.translateText = async (text, targetLanguage, sourceLanguage = null) => {
   try {
-    const options = { to: targetLanguage };
-    if (sourceLanguage) options.from = sourceLanguage;
+    const payload = {
+      q: text,
+      source: sourceLanguage || 'auto',
+      target: targetLanguage,
+      format: 'text'
+    };
 
-    const [translation] = await translate.translate(text, options);
-    return translation;
+    const response = await axios.post(`${LIBRE_TRANSLATE_URL}/translate`, payload, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    return response.data.translatedText;
   } catch (err) {
     console.error('Translation error:', err.message);
     return text; // Return original if translation fails
@@ -32,10 +48,30 @@ exports.translateForRecipients = async (text, sourceLanguage, targetLanguages) =
   const uniqueLangs = [...new Set(targetLanguages)].filter(lang => lang !== sourceLanguage);
   const translations = [];
 
-  for (const lang of uniqueLangs) {
-    const translated = await exports.translateText(text, lang, sourceLanguage);
-    translations.push({ language: lang, text: translated });
+  // Run translations in parallel for better performance
+  const results = await Promise.allSettled(
+    uniqueLangs.map(async (lang) => {
+      const translated = await exports.translateText(text, lang, sourceLanguage);
+      return { language: lang, text: translated };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled') {
+      translations.push(result.value);
+    }
   }
 
   return translations;
+};
+
+// Get supported languages from LibreTranslate
+exports.getSupportedLanguages = async () => {
+  try {
+    const response = await axios.get(`${LIBRE_TRANSLATE_URL}/languages`);
+    return response.data; // Array of { code, name }
+  } catch (err) {
+    console.error('Error fetching supported languages:', err.message);
+    return [];
+  }
 };

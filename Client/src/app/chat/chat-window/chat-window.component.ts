@@ -1,4 +1,4 @@
-import { Component, inject, ElementRef, ViewChild, AfterViewChecked, computed, OnInit } from '@angular/core';
+import { Component, inject, ElementRef, ViewChild, AfterViewChecked, computed, OnInit, signal } from '@angular/core';
 import { ChatService } from '../../services/chat.service';
 import { AuthService } from '../../services/auth.service';
 import { TranslationService } from '../../services/translation.service';
@@ -25,12 +25,29 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
   messageText = '';
   private typingTimeout: any;
 
+  // Search functionality
+  isSearchOpen = signal(false);
+  searchQuery = signal('');
+
+  // Menu functionality
+  isMenuOpen = signal(false);
+
   @ViewChild('messagesContainer') messagesContainer!: ElementRef;
   private shouldScroll = true;
 
   /** Groups messages by date and marks first/last in consecutive sender groups */
   groupedMessages = computed<MessageGroup[]>(() => {
-    const messages = this.chatService.messages();
+    let messages = this.chatService.messages();
+    const query = this.searchQuery().toLowerCase().trim();
+
+    // Filter by search query if active
+    if (query) {
+      messages = messages.filter(m => 
+        m.originalText.toLowerCase().includes(query) || 
+        m.translations?.some((t: any) => t.text.toLowerCase().includes(query))
+      );
+    }
+
     if (!messages || messages.length === 0) return [];
 
     const groups: MessageGroup[] = [];
@@ -131,12 +148,11 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
 
   /** Get message text — checks if showing translated or original */
   getMessageText(msg: any): string {
+    const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
     const msgId = msg._id;
 
-    // If showing translated version and we have a cached translation
-    if (this.translationService.isShowingTranslated(msgId)) {
-      const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
-
+    // Check if global translate-all is on OR local toggle is on
+    if (this.translationService.translateAll() || this.translationService.isShowingTranslated(msgId)) {
       // First check server-side translations array
       const serverTranslation = msg.translations?.find((t: any) => t.language === userLang);
       if (serverTranslation) return serverTranslation.text;
@@ -144,73 +160,56 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
       // Then check client-side cache
       const cached = this.translationService.getCachedTranslation(msgId, userLang);
       if (cached) return cached;
+      
+      // If global is on but no translation yet, we could trigger it, 
+      // but for better UX we just return original until it's ready.
+      if (this.translationService.translateAll()) {
+         this.ensureTranslationReady(msg);
+      }
     }
 
     return msg.originalText;
   }
 
-  /** Check if the message language differs from user's preferred language */
-  canTranslate(msg: any): boolean {
-    const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
-    // If message has originalLanguage and it's different from user's language
-    if (msg.originalLanguage && msg.originalLanguage !== userLang) return true;
-    // If message has translations available for user's language
-    if (msg.translations?.some((t: any) => t.language === userLang)) return true;
-    return false;
-  }
-
-  /** Toggle translation for a message */
-  toggleTranslation(msg: any) {
+  /** Background translate if missing when Translate All is active */
+  private ensureTranslationReady(msg: any) {
     const msgId = msg._id;
     const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
+    
+    if (this.translationService.getCachedTranslation(msgId, userLang)) return;
+    if (this.translationService.isLoading(msgId)) return;
+    if (!this.canTranslate(msg)) return;
 
-    // If currently showing translated, toggle back to original
-    if (this.translationService.isShowingTranslated(msgId)) {
-      this.translationService.setShowTranslated(msgId, false);
-      return;
-    }
-
-    // Check if translation already cached (server-side or client-side)
-    const serverTranslation = msg.translations?.find((t: any) => t.language === userLang);
-    const cachedTranslation = this.translationService.getCachedTranslation(msgId, userLang);
-
-    if (serverTranslation || cachedTranslation) {
-      this.translationService.setShowTranslated(msgId, true);
-      return;
-    }
-
-    // Fetch translation on-demand
     this.translationService.setLoading(msgId, true);
     this.translationService.translate(msg.originalText, userLang, msg.originalLanguage).subscribe({
       next: (result) => {
         this.translationService.cacheTranslation(msgId, userLang, result.translatedText);
-        this.translationService.setShowTranslated(msgId, true);
         this.translationService.setLoading(msgId, false);
       },
-      error: () => {
-        this.translationService.setLoading(msgId, false);
-      }
+      error: () => this.translationService.setLoading(msgId, false)
     });
   }
 
-  /** Check if currently showing translated text */
-  isShowingTranslated(msg: any): boolean {
-    return this.translationService.isShowingTranslated(msg._id);
+  /** Check if the message language differs from user's preferred language */
+  canTranslate(msg: any): boolean {
+    const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
+    if (msg.originalLanguage && msg.originalLanguage !== userLang) return true;
+    if (msg.translations?.some((t: any) => t.language === userLang)) return true;
+    return false;
   }
 
-  /** Check if translation is loading */
+  toggleTranslationAll() {
+    this.translationService.toggleTranslateAll();
+  }
+
+  isShowingTranslated(msg: any): boolean {
+    return this.translationService.translateAll() || this.translationService.isShowingTranslated(msg._id);
+  }
+
   isTranslationLoading(msg: any): boolean {
     return this.translationService.isLoading(msg._id);
   }
 
-  /** Get the translation toggle label */
-  getTranslationLabel(msg: any): string {
-    if (this.translationService.isLoading(msg._id)) return 'Translating...';
-    if (this.translationService.isShowingTranslated(msg._id)) return 'Show original';
-    return 'Translate';
-  }
-
-  /** Get detected language label */
   getLanguageLabel(msg: any): string {
     if (msg.originalLanguage) {
       return this.translationService.getLanguageName(msg.originalLanguage);
@@ -238,7 +237,6 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     const room = this.chatService.currentRoom();
     if (!room) return '';
 
-    // Check typing users
     const typingUsers = this.chatService.typingUsers();
     if (typingUsers.length > 0) {
       const names = typingUsers.map(u => u.username);
@@ -268,5 +266,48 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     if (!room || room.isGroup) return false;
     const partner = this.chatService.getChatPartner(room);
     return partner?.isOnline || false;
+  }
+
+  // --- Header Actions ---
+
+  toggleSearch() {
+    this.isSearchOpen.update(v => !v);
+    if (!this.isSearchOpen()) this.searchQuery.set('');
+  }
+
+  toggleMenu() {
+    this.isMenuOpen.update(v => !v);
+  }
+
+  clearChat() {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+    if (confirm('Are you sure you want to clear this chat? All messages will be deleted.')) {
+      this.chatService.clearChat(room._id).subscribe();
+      this.isMenuOpen.set(false);
+    }
+  }
+
+  deleteChat() {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+    if (confirm('Are you sure you want to delete this chat? The conversation will be removed.')) {
+      this.chatService.deleteChat(room._id).subscribe();
+      this.isMenuOpen.set(false);
+    }
+  }
+
+  togglePin() {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+    this.chatService.togglePin(room._id).subscribe();
+    this.isMenuOpen.set(false);
+  }
+
+  isRoomPinned(): boolean {
+    const room = this.chatService.currentRoom();
+    if (!room) return false;
+    const userId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
+    return room.pinnedBy?.includes(userId) || room.isPinned;
   }
 }

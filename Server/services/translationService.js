@@ -1,19 +1,29 @@
 const axios = require('axios');
 
-const LIBRE_TRANSLATE_URL = process.env.LIBRE_TRANSLATE_URL || 'https://libretranslate.de';
+// Using the free, keyless Google Translate API (client=gtx)
+// This is very stable for testing and provides both translation and detection.
+const GOOGLE_API_URL = 'https://translate.googleapis.com/translate_a/single';
 
-// Detect language of text
+/**
+ * Detect language of text
+ */
 exports.detectLanguage = async (text) => {
   try {
-    const response = await axios.post(`${LIBRE_TRANSLATE_URL}/detect`, {
-      q: text
-    }, {
-      headers: { 'Content-Type': 'application/json' }
+    const response = await axios.get(GOOGLE_API_URL, {
+      params: {
+        client: 'gtx',
+        sl: 'auto',
+        tl: 'en', // Target language doesn't matter much for detection
+        dt: 't',
+        q: text
+      }
     });
 
-    // Response is an array of detections sorted by confidence
-    if (response.data && response.data.length > 0) {
-      return response.data[0].language;
+    // The detected language is usually at index 2 of the response array
+    if (response.data && response.data[2]) {
+      const detected = response.data[2];
+      console.log(`[Detection] Detected language: ${detected} for text: "${text.substring(0, 20)}..."`);
+      return detected;
     }
     return 'en';
   } catch (err) {
@@ -22,33 +32,45 @@ exports.detectLanguage = async (text) => {
   }
 };
 
-// Translate text to target language
-exports.translateText = async (text, targetLanguage, sourceLanguage = null) => {
+/**
+ * Translate text to target language
+ */
+exports.translateText = async (text, targetLanguage, sourceLanguage = 'auto') => {
   try {
-    const payload = {
-      q: text,
-      source: sourceLanguage || 'auto',
-      target: targetLanguage,
-      format: 'text'
-    };
-
-    const response = await axios.post(`${LIBRE_TRANSLATE_URL}/translate`, payload, {
-      headers: { 'Content-Type': 'application/json' }
+    const response = await axios.get(GOOGLE_API_URL, {
+      params: {
+        client: 'gtx',
+        sl: sourceLanguage || 'auto',
+        tl: targetLanguage,
+        dt: 't',
+        q: text
+      }
     });
 
-    return response.data.translatedText;
+    // The translated text is the first element of the first element's nested array
+    // Structure: [[[translated, original, ...]]]
+    if (response.data && response.data[0] && response.data[0][0]) {
+      const translated = response.data[0].map(item => item[0]).join('');
+      return translated;
+    }
+    return text;
   } catch (err) {
     console.error('Translation error:', err.message);
     return text; // Return original if translation fails
   }
 };
 
-// Translate a message for multiple target languages
+/**
+ * Translate a message for multiple target languages
+ */
 exports.translateForRecipients = async (text, sourceLanguage, targetLanguages) => {
   const uniqueLangs = [...new Set(targetLanguages)].filter(lang => lang !== sourceLanguage);
+  
+  if (uniqueLangs.length === 0) return [];
+
   const translations = [];
 
-  // Run translations in parallel for better performance
+  // Run translations in parallel
   const results = await Promise.allSettled(
     uniqueLangs.map(async (lang) => {
       const translated = await exports.translateText(text, lang, sourceLanguage);
@@ -65,13 +87,25 @@ exports.translateForRecipients = async (text, sourceLanguage, targetLanguages) =
   return translations;
 };
 
-// Get supported languages from LibreTranslate
+/**
+ * Get supported languages (for UI dropdown)
+ */
 exports.getSupportedLanguages = async () => {
-  try {
-    const response = await axios.get(`${LIBRE_TRANSLATE_URL}/languages`);
-    return response.data; // Array of { code, name }
-  } catch (err) {
-    console.error('Error fetching supported languages:', err.message);
-    return [];
-  }
+  // Common languages supported by Google Translate
+  return [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'de', name: 'German' },
+    { code: 'it', name: 'Italian' },
+    { code: 'hi', name: 'Hindi' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ru', name: 'Russian' },
+    { code: 'pt', name: 'Portuguese' },
+    { code: 'ar', name: 'Arabic' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'tr', name: 'Turkish' },
+    { code: 'vi', name: 'Vietnamese' }
+  ];
 };

@@ -15,7 +15,14 @@
       <div class="room-info">
         <div class="room-top-row">
           <strong class="room-name">{{ getRoomName(room) }}</strong>
-          <span class="room-time">{{ getLastMessageTime(room) }}</span>
+          <div class="room-time-container">
+            @if (isRoomPinned(room)) {
+              <svg class="pin-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M16 10.5h-5.5L12 3 8.5 10.5H3l4.5 4.5L6 21l6-4.5 6 4.5-1.5-6L21 10.5z"/>
+              </svg>
+            }
+            <span class="room-time">{{ getLastMessageTime(room) }}</span>
+          </div>
         </div>
         <div class="room-bottom-row">
           <p class="room-preview">{{ getLastMessagePreview(room) }}</p>

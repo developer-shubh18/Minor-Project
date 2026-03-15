@@ -131,4 +131,39 @@ export class ChatService {
   isUserOnline(userId: string): boolean {
     return this.onlineUsers().has(userId);
   }
+
+  clearChat(roomId: string) {
+    return this.http.delete(`${this.apiUrl}/rooms/${roomId}/messages`).pipe(
+      tap(() => this.messages.set([]))
+    );
+  }
+
+  deleteChat(roomId: string) {
+    return this.http.delete(`${this.apiUrl}/rooms/${roomId}`).pipe(
+      tap(() => {
+        this.rooms.update(rooms => rooms.filter(r => r._id !== roomId));
+        this.currentRoom.set(null);
+        this.messages.set([]);
+      })
+    );
+  }
+
+  togglePin(roomId: string) {
+    return this.http.post(`${this.apiUrl}/rooms/${roomId}/pin`, {}).pipe(
+      tap((res: any) => {
+        this.rooms.update(rooms => {
+          const updated = rooms.map(r => r._id === roomId ? { ...r, isPinned: res.isPinned } : r);
+          // Re-sort with pinned rooms on top
+          return updated.sort((a, b) => {
+            const userId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
+            const aPinned = a.pinnedBy?.includes(userId) || a.isPinned;
+            const bPinned = b.pinnedBy?.includes(userId) || b.isPinned;
+            if (aPinned && !bPinned) return -1;
+            if (!aPinned && bPinned) return 1;
+            return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+          });
+        });
+      })
+    );
+  }
 }

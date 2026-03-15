@@ -12,11 +12,66 @@ exports.getRooms = async (req, res) => {
         populate: { path: 'sender', select: 'username' }
       })
       .sort('-updatedAt');
-    res.json({ status: 'success', rooms });
+    
+    // Sort pinned rooms to the top
+    const sortedRooms = rooms.sort((a, b) => {
+      const aPinned = a.pinnedBy?.includes(req.user.id);
+      const bPinned = b.pinnedBy?.includes(req.user.id);
+      if (aPinned && !bPinned) return -1;
+      if (!aPinned && bPinned) return 1;
+      return 0;
+    });
+
+    res.json({ status: 'success', rooms: sortedRooms });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
+
+// ... existing createRoom, getMessages ...
+
+// Clear all messages in a room
+exports.clearRoom = async (req, res) => {
+  try {
+    await Message.deleteMany({ room: req.params.roomId });
+    await Room.findByIdAndUpdate(req.params.roomId, { $unset: { lastMessage: 1 } });
+    res.json({ status: 'success', message: 'Chat cleared' });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// Delete a room and its messages
+exports.deleteRoom = async (req, res) => {
+  try {
+    await Message.deleteMany({ room: req.params.roomId });
+    await Room.findByIdAndDelete(req.params.roomId);
+    res.json({ status: 'success', message: 'Chat deleted' });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// Toggle pin for a room
+exports.togglePin = async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.roomId);
+    if (!room) return res.status(404).json({ status: 'error', message: 'Room not found' });
+
+    const isPinned = room.pinnedBy.includes(req.user.id);
+    if (isPinned) {
+      room.pinnedBy = room.pinnedBy.filter(id => id.toString() !== req.user.id.toString());
+    } else {
+      room.pinnedBy.push(req.user.id);
+    }
+    
+    await room.save();
+    res.json({ status: 'success', isPinned: !isPinned });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 
 exports.createRoom = async (req, res) => {
   try {

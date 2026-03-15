@@ -58,4 +58,9 @@ export class RoomListComponent {
     const partner = this.chatService.getChatPartner(room);
     return partner?.isOnline || false;
   }
+
+  isRoomPinned(room: any): boolean {
+    const userId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
+    return room.pinnedBy?.includes(userId) || room.isPinned;
+  }
 }

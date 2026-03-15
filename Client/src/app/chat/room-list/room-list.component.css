@@ -112,11 +112,22 @@
   text-overflow: ellipsis;
 }
 
+.room-time-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pin-icon {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
 .room-time {
   font-size: 0.72rem;
   color: var(--text-muted);
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .room-bottom-row {

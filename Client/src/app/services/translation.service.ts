@@ -28,6 +28,13 @@ export class TranslationService {
   // Track which messages are showing translated text: messageId -> boolean
   private showTranslatedMap = new Map<string, boolean>();
 
+  // Global translate all toggle
+  translateAll = signal<boolean>(false);
+
+  toggleTranslateAll() {
+    this.translateAll.update(v => !v);
+  }
+
   // Track loading state per message
   private loadingMap = new Map<string, boolean>();
 

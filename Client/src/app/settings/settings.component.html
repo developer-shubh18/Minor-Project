@@ -1,0 +1,150 @@
+<div class="settings-page">
+    <!-- Header -->
+    <div class="settings-header">
+        <button class="back-btn" id="settings-back-btn" (click)="goBack()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m15 18-6-6 6-6" />
+            </svg>
+        </button>
+        <h2>Settings</h2>
+    </div>
+
+    @if (successMessage) {
+    <div class="alert success">{{ successMessage }}</div>
+    }
+    @if (errorMessage) {
+    <div class="alert error">{{ errorMessage }}</div>
+    }
+
+    <div class="settings-content">
+        <!-- Profile Card -->
+        <div class="settings-card profile-card" id="go-to-profile" (click)="goToProfile()">
+            <div class="card-avatar">
+                <span>{{ getUserInitial() }}</span>
+            </div>
+            <div class="card-info">
+                <h3>{{ getUserName() }}</h3>
+                <p>{{ getUserEmail() }}</p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="chevron">
+                <path d="m9 18 6-6-6-6" />
+            </svg>
+        </div>
+
+        <!-- Menu Items -->
+        <div class="settings-section">
+            <h4 class="section-title">Account</h4>
+
+            <div class="menu-item" id="change-password-btn" (click)="togglePasswordForm()">
+                <div class="menu-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                </div>
+                <div class="menu-text">
+                    <span>Change Password</span>
+                    <small>Update your account password</small>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="chevron">
+                    <path d="m9 18 6-6-6-6" />
+                </svg>
+            </div>
+
+            <!-- Password Form -->
+            @if (showPasswordForm) {
+            <div class="password-form">
+                <div class="form-group">
+                    <label for="current-password">Current Password</label>
+                    <input id="current-password" type="password" [(ngModel)]="passwordData.currentPassword"
+                        placeholder="Enter current password">
+                </div>
+                <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input id="new-password" type="password" [(ngModel)]="passwordData.newPassword"
+                        placeholder="Enter new password">
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Confirm New Password</label>
+                    <input id="confirm-password" type="password" [(ngModel)]="passwordData.confirmPassword"
+                        placeholder="Confirm new password">
+                </div>
+                <button class="save-btn" id="save-password-btn" (click)="changePassword()">Update Password</button>
+            </div>
+            }
+        </div>
+
+        <div class="settings-section">
+            <h4 class="section-title">General</h4>
+
+            <div class="menu-item" id="edit-profile-btn" (click)="goToProfile()">
+                <div class="menu-icon accent">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
+                    </svg>
+                </div>
+                <div class="menu-text">
+                    <span>Edit Profile</span>
+                    <small>Change your name, about, and language</small>
+                </div>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="chevron">
+                    <path d="m9 18 6-6-6-6" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h4 class="section-title">Actions</h4>
+
+            <div class="menu-item" id="logout-btn" (click)="logout()">
+                <div class="menu-icon warning">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" x2="9" y1="12" y2="12" />
+                    </svg>
+                </div>
+                <div class="menu-text">
+                    <span class="text-warning">Log Out</span>
+                    <small>Sign out of your account</small>
+                </div>
+            </div>
+
+            <div class="menu-item danger" id="delete-account-btn" (click)="toggleDeleteConfirm()">
+                <div class="menu-icon danger">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                    </svg>
+                </div>
+                <div class="menu-text">
+                    <span class="text-danger">Delete Account</span>
+                    <small>Permanently delete your account and data</small>
+                </div>
+            </div>
+
+            <!-- Delete Confirmation -->
+            @if (showDeleteConfirm) {
+            <div class="delete-confirm">
+                <p>Are you sure you want to delete your account? This action <strong>cannot</strong> be undone.</p>
+                <div class="confirm-actions">
+                    <button class="cancel-btn" (click)="toggleDeleteConfirm()">Cancel</button>
+                    <button class="danger-btn" id="confirm-delete-btn" (click)="deleteAccount()">Yes, Delete</button>
+                </div>
+            </div>
+            }
+        </div>
+    </div>
+</div>

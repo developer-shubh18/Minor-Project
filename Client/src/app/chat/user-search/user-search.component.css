@@ -1,0 +1,159 @@
+/* ===== USER SEARCH — WhatsApp Style ===== */
+
+.user-search {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  background: var(--bg-secondary);
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  background: var(--bg-tertiary);
+  border: none;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+
+.search-box:focus-within {
+  background: var(--bg-elevated);
+}
+
+.search-icon {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: color var(--transition);
+}
+
+.search-box:focus-within .search-icon {
+  color: var(--accent);
+}
+
+.search-box input {
+  flex: 1;
+  padding: 8px 0;
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.88rem;
+  outline: none;
+}
+
+.search-box input::placeholder {
+  color: var(--text-muted);
+}
+
+.clear-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color var(--transition);
+  flex-shrink: 0;
+}
+
+.clear-btn:hover {
+  color: var(--text-primary);
+}
+
+/* Dropdown */
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 20;
+  box-shadow: var(--shadow-md);
+  animation: slideUp 0.15s ease-out;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  position: relative;
+}
+
+.user-item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 68px;
+  right: 16px;
+  height: 1px;
+  background: var(--border);
+}
+
+.user-item:last-child::after {
+  display: none;
+}
+
+.user-item:hover {
+  background: var(--bg-hover);
+}
+
+.user-avatar {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.user-avatar span {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.user-online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid var(--bg-elevated);
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-info strong {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.user-info small {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}

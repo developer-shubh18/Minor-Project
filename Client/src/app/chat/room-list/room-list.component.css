@@ -1,0 +1,183 @@
+/* ===== ROOM LIST — WhatsApp Style ===== */
+
+.room-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.room-list h3 {
+  padding: 14px 20px 8px;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+
+.rooms {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Room Item */
+.room-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  position: relative;
+}
+
+.room-item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 78px;
+  right: 16px;
+  height: 1px;
+  background: var(--border);
+}
+
+.room-item:last-child::after {
+  display: none;
+}
+
+.room-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.room-item.active {
+  background: var(--bg-hover);
+}
+
+/* Avatar */
+.room-avatar {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.room-initial {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.online-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--success);
+  border: 2px solid var(--bg-secondary);
+}
+
+/* Room Info */
+.room-info {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+}
+
+.room-top-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.room-name {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.room-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.room-bottom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-preview {
+  flex: 1;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.room-badge {
+  display: flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Active state */
+.room-item.active .room-name {
+  color: var(--text-primary);
+}
+
+.room-item.active .room-time {
+  color: var(--accent);
+}
+
+/* Empty state */
+.empty-rooms {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3.5rem 2rem;
+  text-align: center;
+  gap: 8px;
+  color: var(--text-muted);
+  animation: fadeIn 0.5s ease;
+}
+
+.empty-rooms svg {
+  opacity: 0.25;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+.empty-rooms p {
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.empty-rooms small {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}

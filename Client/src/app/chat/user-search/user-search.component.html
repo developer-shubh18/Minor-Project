@@ -1,0 +1,38 @@
+<div class="user-search">
+  <div class="search-box">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon">
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+    <input [(ngModel)]="searchQuery" (input)="search()" placeholder="Search users..." id="user-search-input"
+      autocomplete="off">
+    @if (searchQuery) {
+    <button class="clear-btn" (click)="clearSearch()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6 6 18" />
+        <path d="m6 6 12 12" />
+      </svg>
+    </button>
+    }
+  </div>
+  @if (searchResults.length > 0) {
+  <div class="search-results">
+    @for (user of searchResults; track user._id) {
+    <div class="user-item" (click)="startChat(user)">
+      <div class="user-avatar">
+        <span>{{ user.username?.charAt(0)?.toUpperCase() }}</span>
+        @if (user.isOnline) {
+        <div class="user-online-dot"></div>
+        }
+      </div>
+      <div class="user-info">
+        <strong>{{ user.username }}</strong>
+        <small>{{ user.email }}</small>
+      </div>
+    </div>
+    }
+  </div>
+  }
+</div>

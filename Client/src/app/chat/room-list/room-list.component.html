@@ -1,0 +1,49 @@
+<div class="room-list">
+  <h3>Chats</h3>
+  <div class="rooms">
+    @for (room of chatService.rooms(); track room._id) {
+    <div class="room-item" (click)="selectRoom(room)" [class.active]="chatService.currentRoom()?._id === room._id">
+      <!-- Avatar -->
+      <div class="room-avatar">
+        <span class="room-initial">{{ getRoomInitial(room) }}</span>
+        @if (!room.isGroup && isPartnerOnline(room)) {
+        <div class="online-dot"></div>
+        }
+      </div>
+
+      <!-- Room Info -->
+      <div class="room-info">
+        <div class="room-top-row">
+          <strong class="room-name">{{ getRoomName(room) }}</strong>
+          <span class="room-time">{{ getLastMessageTime(room) }}</span>
+        </div>
+        <div class="room-bottom-row">
+          <p class="room-preview">{{ getLastMessagePreview(room) }}</p>
+          @if (room.isGroup) {
+          <span class="room-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </span>
+          }
+        </div>
+      </div>
+    </div>
+    }
+
+    @if (chatService.rooms().length === 0) {
+    <div class="empty-rooms">
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+      <p>No chats yet</p>
+      <small>Search for a user to start a conversation</small>
+    </div>
+    }
+  </div>
+</div>

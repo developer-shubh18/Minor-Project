@@ -1,0 +1,64 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
+
+const authRoutes = require('./routes/authRoutes');
+const chatRoutes = require('./routes/chatRoutes');
+const userRoutes = require('./routes/userRoutes');
+const { verifySocketToken } = require('./middleware/authMiddleware');
+const { handleSocketEvents } = require('./socket/socketHandler');
+
+const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CLIENT_URL || 'http://localhost:4200',
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
+
+// Middleware
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:4200',
+  credentials: true
+}));
+app.use(express.json());
+
+// REST Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/users', userRoutes);
+
+app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'Server is running' }));
+
+// Socket.IO Auth Middleware
+io.use(verifySocketToken);
+
+// Socket.IO Events
+io.on('connection', (socket) => {
+  console.log(`✅ User connected: ${socket.user.username} (${socket.id})`);
+  handleSocketEvents(io, socket);
+  socket.on('disconnect', () => {
+    console.log(`❌ User disconnected: ${socket.user.username}`);
+  });
+});
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log('✅ MongoDB connected');
+    server.listen(process.env.PORT || 5000, () => {
+      console.log(`🚀 Server running on port ${process.env.PORT || 5000}`);
+    });
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err);
+    process.exit(1);
+  });
+
+module.exports = { io };

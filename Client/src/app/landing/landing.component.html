@@ -1,0 +1,418 @@
+<!-- ═══════════════════════ NAVBAR ═══════════════════════ -->
+<nav class="lp-nav" [class.scrolled]="navScrolled" id="landing-nav">
+  <div class="nav-inner">
+    <a class="nav-brand" (click)="scrollTo('hero')">
+      <div class="brand-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </div>
+      <span>QuickChat</span>
+    </a>
+
+    <ul class="nav-links">
+      <li><a (click)="scrollTo('features')">Features</a></li>
+      <li><a (click)="scrollTo('how-it-works')">How It Works</a></li>
+      <li><a (click)="scrollTo('use-cases')">Use Cases</a></li>
+      <li><a (click)="scrollTo('stats')">Stats</a></li>
+    </ul>
+
+    <div class="nav-actions">
+      <a routerLink="/login" class="nav-btn nav-btn-ghost" id="nav-login">Log In</a>
+      <a routerLink="/signup" class="nav-btn nav-btn-solid" id="nav-signup">Sign Up Free</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═══════════════════════ HERO ═══════════════════════ -->
+<section class="hero-section" id="hero">
+  <!-- Animated gradient blobs -->
+  <div class="hero-blob blob-1"></div>
+  <div class="hero-blob blob-2"></div>
+  <div class="hero-blob blob-3"></div>
+
+  <!-- Floating language labels -->
+  <div class="floating-lang lang-1">🇪🇸 Hola</div>
+  <div class="floating-lang lang-2">🇫🇷 Bonjour</div>
+  <div class="floating-lang lang-3">🇯🇵 こんにちは</div>
+  <div class="floating-lang lang-4">🇩🇪 Hallo</div>
+  <div class="floating-lang lang-5">🇮🇳 नमस्ते</div>
+  <div class="floating-lang lang-6">🇸🇦 مرحبا</div>
+
+  <div class="hero-content">
+    <div class="hero-badge">🌐 Multilingual Chat Platform</div>
+    <h1 class="hero-title">
+      Chat in <span class="gradient-text">Any Language</span>,<br />
+      Understand <span class="gradient-text">Every Message</span>
+    </h1>
+    <p class="hero-subtitle">
+      QuickChat automatically translates messages in real time so everyone in the
+      conversation understands — no matter what language they speak.
+    </p>
+
+    <div class="hero-cta">
+      <a routerLink="/signup" class="lp-btn lp-btn-primary" id="hero-get-started">
+        <span>Get Started — It's Free</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+        </svg>
+      </a>
+      <a (click)="scrollTo('features')" class="lp-btn lp-btn-outline" id="hero-learn-more">
+        Learn More
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </a>
+    </div>
+
+    <!-- Mockup chat preview -->
+    <div class="hero-mockup">
+      <div class="mockup-header">
+        <div class="mockup-avatar">JD</div>
+        <div class="mockup-meta">
+          <span class="mockup-name">Juan Diego</span>
+          <span class="mockup-status">Online • Translating to English</span>
+        </div>
+      </div>
+      <div class="mockup-body">
+        <div class="m-bubble incoming">
+          <span class="m-original">¡Hola! ¿Cómo va el proyecto?</span>
+          <span class="m-translated">Hello! How is the project going?</span>
+          <span class="m-time">10:42 AM</span>
+        </div>
+        <div class="m-bubble outgoing">
+          <span class="m-original">Going great, thanks! Almost done 🎉</span>
+          <span class="m-time">10:43 AM</span>
+        </div>
+        <div class="m-bubble incoming">
+          <span class="m-original">Perfecto, hablamos luego 👋</span>
+          <span class="m-translated">Perfect, talk later 👋</span>
+          <span class="m-time">10:44 AM</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ FEATURES ═══════════════════════ -->
+<section class="features-section reveal" id="features">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-badge">✨ Features</span>
+      <h2 class="section-title">Everything You Need for<br /><span class="gradient-text">Seamless Communication</span></h2>
+      <p class="section-desc">
+        QuickChat is designed to break language barriers and make every conversation feel natural and effortless.
+      </p>
+    </div>
+
+    <div class="features-grid">
+      <!-- Feature 1 -->
+      <div class="feature-card">
+        <div class="feature-icon" style="--clr: #00a884;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" /><path d="M2 12h20" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        </div>
+        <h3>Real-Time Translation</h3>
+        <p>Messages are automatically translated into each user's preferred language — instantly, with no manual effort.</p>
+      </div>
+
+      <!-- Feature 2 -->
+      <div class="feature-card">
+        <div class="feature-icon" style="--clr: #53bdeb;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 6.1H3" /><path d="M21 12.1H3" /><path d="M15.1 18H3" />
+          </svg>
+        </div>
+        <h3>100+ Languages</h3>
+        <p>Support for over 100 languages ensures that users from any corner of the world can communicate freely.</p>
+      </div>
+
+      <!-- Feature 3 -->
+      <div class="feature-card">
+        <div class="feature-icon" style="--clr: #f59e0b;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m21 15-3.086-6.172A2 2 0 0 0 16.12 8H7.88a2 2 0 0 0-1.794 1.828L3 15" />
+            <path d="M3 15h18v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2Z" />
+            <path d="m12 8 0-4" /><path d="M8 4h8" />
+          </svg>
+        </div>
+        <h3>Group Chats</h3>
+        <p>Create multilingual group chats where everyone reads messages in their preferred language — chaos-free.</p>
+      </div>
+
+      <!-- Feature 4 -->
+      <div class="feature-card">
+        <div class="feature-icon" style="--clr: #ea4335;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h3>Secure & Private</h3>
+        <p>End-to-end design with encrypted tokens ensures your conversations remain private and data stays safe.</p>
+      </div>
+
+      <!-- Feature 5 -->
+      <div class="feature-card">
+        <div class="feature-icon" style="--clr: #a855f7;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+        </div>
+        <h3>Dark Mode UI</h3>
+        <p>A sleek WhatsApp-inspired dark interface that's easy on the eyes and feels modern and premium.</p>
+      </div>
+
+      <!-- Feature 6 -->
+      <div class="feature-card">
+        <div class="feature-icon" style="--clr: #06cf9c;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
+        </div>
+        <h3>Lightning Fast</h3>
+        <p>Built on Socket.IO for real-time WebSocket messaging — experience zero-lag conversations.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ HOW IT WORKS ═══════════════════════ -->
+<section class="how-section reveal" id="how-it-works">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-badge">🚀 How It Works</span>
+      <h2 class="section-title">Three Simple Steps to<br /><span class="gradient-text">Barrier-Free Communication</span></h2>
+    </div>
+
+    <div class="steps-row">
+      <div class="step-card">
+        <div class="step-number">01</div>
+        <div class="step-icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+        <h3>Create an Account</h3>
+        <p>Sign up in seconds, set your display name, and choose your preferred language.</p>
+      </div>
+
+      <div class="step-connector">
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+        </svg>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">02</div>
+        <div class="step-icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </div>
+        <h3>Start Chatting</h3>
+        <p>Search users, start direct or group conversations — just type and send your message.</p>
+      </div>
+
+      <div class="step-connector">
+        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+        </svg>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">03</div>
+        <div class="step-icon-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" /><path d="M2 12h20" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+          </svg>
+        </div>
+        <h3>Auto-Translate</h3>
+        <p>Messages are instantly translated into your language. Respond freely — they'll see it in theirs.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ PROBLEM & SOLUTION ═══════════════════════ -->
+<section class="problem-section reveal" id="problem">
+  <div class="section-inner">
+    <div class="ps-grid">
+      <!-- Problem -->
+      <div class="ps-card problem">
+        <div class="ps-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" />
+            <line x1="12" x2="12.01" y1="16" y2="16" />
+          </svg>
+        </div>
+        <h3>The Problem</h3>
+        <p>
+          In globalized classrooms and workplaces, people from different linguistic backgrounds struggle to
+          communicate through conventional chat apps. Manual copy-pasting into external translation tools is
+          slow, disruptive, and leads to <strong>miscommunication, confusion,</strong> and
+          <strong>reduced participation</strong>.
+        </p>
+        <ul class="ps-list">
+          <li>Language barriers in group discussions</li>
+          <li>External translation interrupts conversation flow</li>
+          <li>International students & workers feel excluded</li>
+          <li>Lost context and meaning in back-and-forth</li>
+        </ul>
+      </div>
+
+      <!-- Solution -->
+      <div class="ps-card solution">
+        <div class="ps-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z" />
+            <path d="m9 12 2 2 4-4" />
+          </svg>
+        </div>
+        <h3>Our Solution</h3>
+        <p>
+          QuickChat integrates <strong>automatic real-time translation</strong> directly inside the chat.
+          Every message is instantly translated into each user's preferred language — making conversations
+          <strong>inclusive, seamless,</strong> and <strong>efficient</strong>.
+        </p>
+        <ul class="ps-list">
+          <li>Integrated, instant in-chat translation</li>
+          <li>Zero interruption to conversation flow</li>
+          <li>Everyone reads in their own language</li>
+          <li>Inclusive & accessible for all backgrounds</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ USE CASES ═══════════════════════ -->
+<section class="usecase-section reveal" id="use-cases">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-badge">🎯 Use Cases</span>
+      <h2 class="section-title">Built For<br /><span class="gradient-text">Diverse Communities</span></h2>
+      <p class="section-desc">
+        From classrooms to corporate boardrooms — QuickChat bridges language gaps everywhere.
+      </p>
+    </div>
+
+    <div class="usecase-grid">
+      <div class="usecase-card">
+        <span class="uc-emoji">🎓</span>
+        <h4>Educational Institutions</h4>
+        <p>Students from different countries can collaborate and participate in group discussions without language barriers.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="uc-emoji">🌍</span>
+        <h4>International Communities</h4>
+        <p>International student groups and expats can interact naturally, each in their own language.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="uc-emoji">🏢</span>
+        <h4>Global Workplaces</h4>
+        <p>Multinational teams can brainstorm, plan, and execute projects with zero translation overhead.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="uc-emoji">💬</span>
+        <h4>Online Forums</h4>
+        <p>Multilingual communities can host discussions where everyone understands every message clearly.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="uc-emoji">📚</span>
+        <h4>Collaborative Learning</h4>
+        <p>Study groups with diverse members can work together on projects and share ideas effectively.</p>
+      </div>
+      <div class="usecase-card">
+        <span class="uc-emoji">🤝</span>
+        <h4>Cross-border Teams</h4>
+        <p>Remote teams spread across countries can communicate as if they all spoke the same language.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ STATS ═══════════════════════ -->
+<section class="stats-section reveal" id="stats">
+  <div class="section-inner">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-value">{{ userCount | number }}+</span>
+        <span class="stat-label">Active Users</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{ langCount }}+</span>
+        <span class="stat-label">Languages Supported</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">{{ msgCount }}M+</span>
+        <span class="stat-label">Messages Translated</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value">99.9%</span>
+        <span class="stat-label">Uptime Guarantee</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ CTA ═══════════════════════ -->
+<section class="cta-section reveal" id="cta">
+  <div class="section-inner">
+    <div class="cta-card">
+      <h2>Ready to Break the<br /><span class="gradient-text">Language Barrier?</span></h2>
+      <p>Join thousands of users who are already communicating without boundaries. It only takes 30 seconds to get started.</p>
+      <div class="cta-actions">
+        <a routerLink="/signup" class="lp-btn lp-btn-primary lp-btn-lg" id="cta-signup">
+          <span>Create Free Account</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
+          </svg>
+        </a>
+        <a routerLink="/login" class="lp-btn lp-btn-outline lp-btn-lg" id="cta-login">
+          I Already Have an Account
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+<footer class="lp-footer" id="landing-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="brand-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </div>
+      <span>QuickChat</span>
+    </div>
+    <p class="footer-tagline">Breaking language barriers, one message at a time.</p>
+    <div class="footer-divider"></div>
+    <p class="footer-copy">&copy; {{ currentYear }} QuickChat. All rights reserved. Made with ❤️ for a connected world.</p>
+  </div>
+</footer>

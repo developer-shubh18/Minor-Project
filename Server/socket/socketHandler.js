@@ -89,6 +89,35 @@ exports.handleSocketEvents = (io, socket) => {
   });
 
   /**
+   * delete-message
+   * Broadcasts real-time deletion of a single message and synchronizes room preview
+   */
+  socket.on('delete-message', async ({ messageId, roomId }) => {
+    try {
+      if (!messageId || !roomId || !mongoose.Types.ObjectId.isValid(roomId)) return;
+
+      io.to(roomId).emit('message-deleted', { messageId, roomId });
+
+      const room = await Room.findById(roomId).populate('participants');
+      if (room) {
+        const lastMsg = await Message.findOne({ room: roomId })
+          .populate('sender', 'username avatar')
+          .sort('-createdAt');
+
+        room.participants.forEach(p => {
+          const pId = (p._id || p).toString();
+          io.to(`user:${pId}`).emit('room-updated', {
+            roomId: roomId.toString(),
+            lastMessage: lastMsg || null
+          });
+        });
+      }
+    } catch (err) {
+      console.error('[SocketHandler.delete-message] Error:', err);
+    }
+  });
+
+  /**
    * send-message
    * Disciplinary checks -> AI Moderation -> Language Detection -> Parallel Translation -> Delivery
    */

@@ -10,7 +10,8 @@ const {
   translateMessage,
   clearRoom,
   deleteRoom,
-  togglePin
+  togglePin,
+  deleteMessage
 } = require('../controllers/chatController');
 
 const router = express.Router();
@@ -24,6 +25,7 @@ router.delete('/rooms/:roomId/messages', verifyRoomParticipant, clearRoom);
 router.post('/rooms/:roomId/pin', verifyRoomParticipant, togglePin);
 
 router.get('/rooms/:roomId/messages', verifyRoomParticipant, getMessages);
+router.delete('/messages/:messageId', deleteMessage);
 router.get('/users/search', searchUsers);
 
 // Translation endpoints

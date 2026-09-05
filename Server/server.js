@@ -49,7 +49,8 @@ io.on('connection', (socket) => {
 });
 
 // MongoDB Connection + AI Model Load
-mongoose.connect(process.env.MONGO_URI)
+const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+mongoose.connect(mongoUri)
   .then(async () => {
     console.log('✅ MongoDB connected');
 

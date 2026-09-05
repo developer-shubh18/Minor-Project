@@ -81,12 +81,6 @@
             </svg>
             {{ isRoomPinned() ? 'Unpin chat' : 'Pin chat' }}
           </button>
-          <button class="menu-item" (click)="clearChat()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-            </svg>
-            Clear chat
-          </button>
           <button class="menu-item danger" (click)="deleteChat()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
@@ -166,52 +160,61 @@
         @if (!isOwnMessage(msg) && chatService.currentRoom()?.isGroup && msg._isFirstInGroup) {
         <div class="msg-sender">{{ msg.sender?.username || 'Deleted User' }}</div>
         }
-        <div class="msg-bubble">
-          <!-- Tail for last message in group -->
-          @if (msg._isLastInGroup) {
-          <div class="bubble-tail"></div>
-          }
-
-          <!-- Moderation warning badge on message -->
-          @if (msg.moderation?.status === 'warned') {
-          <div class="msg-moderation-badge warned">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-              <path d="M12 9v4"/><path d="M12 17h.01"/>
+        <div class="msg-bubble-wrapper">
+          @if (isOwnMessage(msg)) {
+          <button class="msg-delete-btn" (click)="deleteSingleMessage(msg); $event.stopPropagation()" title="Delete message">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
             </svg>
-            <span>Content moderated</span>
-          </div>
+          </button>
           }
+          <div class="msg-bubble">
+            <!-- Tail for last message in group -->
+            @if (msg._isLastInGroup) {
+            <div class="bubble-tail"></div>
+            }
 
-          <p class="msg-text">{{ getMessageText(msg) }}</p>
-
-          <!-- Language Badge (only if translated) -->
-          @if (isShowingTranslated(msg) && getLanguageLabel(msg)) {
-          <div class="translation-info">
-             <span class="lang-badge">{{ getLanguageLabel(msg) }}</span>
-             @if (isTranslationLoading(msg)) {
-               <span class="translate-spinner"></span>
-             }
-          </div>
-          }
-
-          <div class="msg-meta">
+            <!-- Moderation warning badge on message -->
             @if (msg.moderation?.status === 'warned') {
-              <span class="msg-moderation-icon" title="This message was flagged by content moderation">
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <div class="msg-moderation-badge warned">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                <path d="M12 9v4"/><path d="M12 17h.01"/>
+              </svg>
+              <span>Content moderated</span>
+            </div>
+            }
+
+            <p class="msg-text">{{ getMessageText(msg) }}</p>
+
+            <!-- Language Badge (only if translated) -->
+            @if (isShowingTranslated(msg) && getLanguageLabel(msg)) {
+            <div class="translation-info">
+               <span class="lang-badge">{{ getLanguageLabel(msg) }}</span>
+               @if (isTranslationLoading(msg)) {
+                 <span class="translate-spinner"></span>
+               }
+            </div>
+            }
+
+            <div class="msg-meta">
+              @if (msg.moderation?.status === 'warned') {
+                <span class="msg-moderation-icon" title="This message was flagged by content moderation">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
+                </span>
+              }
+              <span class="msg-time">{{ msg.createdAt | date:'shortTime' }}</span>
+              @if (isOwnMessage(msg)) {
+              <span class="msg-ticks" [class.read]="msg.readBy?.length > 1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="11" viewBox="0 0 16 11">
+                  <path d="M11.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.011-2.095a.463.463 0 0 0-.336-.154.48.48 0 0 0-.342.14.457.457 0 0 0-.14.343.441.441 0 0 0 .154.334l2.335 2.428a.462.462 0 0 0 .682-.013l6.533-8.032a.457.457 0 0 0 .102-.3.457.457 0 0 0-.102-.363z" fill="currentColor"/>
+                  <path d="M15.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-1.2-1.249-.63.776 1.506 1.567a.462.462 0 0 0 .682-.013l6.533-8.032a.457.457 0 0 0 .102-.3.457.457 0 0 0-.118-.461z" fill="currentColor"/>
                 </svg>
               </span>
-            }
-            <span class="msg-time">{{ msg.createdAt | date:'shortTime' }}</span>
-            @if (isOwnMessage(msg)) {
-            <span class="msg-ticks" [class.read]="msg.readBy?.length > 1">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="11" viewBox="0 0 16 11">
-                <path d="M11.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.011-2.095a.463.463 0 0 0-.336-.154.48.48 0 0 0-.342.14.457.457 0 0 0-.14.343.441.441 0 0 0 .154.334l2.335 2.428a.462.462 0 0 0 .682-.013l6.533-8.032a.457.457 0 0 0 .102-.3.457.457 0 0 0-.102-.363z" fill="currentColor"/>
-                <path d="M15.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-1.2-1.249-.63.776 1.506 1.567a.462.462 0 0 0 .682-.013l6.533-8.032a.457.457 0 0 0 .102-.3.457.457 0 0 0-.118-.461z" fill="currentColor"/>
-              </svg>
-            </span>
-            }
+              }
+            </div>
           </div>
         </div>
       </div>

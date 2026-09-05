@@ -369,6 +369,49 @@
 
 .msg-ticks.read { color: var(--info); }
 
+.msg-bubble-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.message.own .msg-bubble-wrapper {
+  flex-direction: row;
+}
+
+/* Single Message Delete Button (WhatsApp-style hover action) */
+.msg-delete-btn {
+  opacity: 0;
+  visibility: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.message.own:hover .msg-delete-btn {
+  opacity: 1;
+  visibility: visible;
+}
+
+.msg-delete-btn:hover {
+  color: #ff4b4b;
+  background: rgba(255, 75, 75, 0.18);
+  border-color: rgba(255, 75, 75, 0.35);
+  transform: scale(1.12);
+}
+
 /* Input Area */
 .message-input-area {
   display: flex;

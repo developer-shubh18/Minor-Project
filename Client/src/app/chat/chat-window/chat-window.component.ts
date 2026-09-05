@@ -300,6 +300,21 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     }
   }
 
+  deleteSingleMessage(msg: any) {
+    if (!msg || !msg._id) return;
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+
+    if (confirm('Delete this message?')) {
+      this.chatService.deleteSingleMessage(msg._id, room._id).subscribe({
+        error: (err) => {
+          console.error('Failed to delete message:', err);
+          alert(err?.error?.message || 'Failed to delete message');
+        }
+      });
+    }
+  }
+
   togglePin() {
     const room = this.chatService.currentRoom();
     if (!room) return;

@@ -78,6 +78,14 @@ export class ChatService {
       this.updateRoomLastMessage(data.roomId, data.lastMessage);
     });
 
+    // Handle real-time single message deletion
+    this.socket.on('message-deleted', (data: { messageId: string, roomId: string }) => {
+      const activeRoom = this.currentRoom();
+      if (activeRoom && activeRoom._id === data.roomId) {
+        this.messages.update(msgs => msgs.filter(m => (m._id || m.id) !== data.messageId));
+      }
+    });
+
     // Handle read receipt confirmations (triggers double-blue ticks)
     this.socket.on('messages-read', (data: { roomId: string, userId: string, readAt: string }) => {
       if (this.currentRoom()?._id === data.roomId) {
@@ -257,6 +265,15 @@ export class ChatService {
         this.rooms.update(rooms => rooms.filter(r => r._id !== roomId));
         this.currentRoom.set(null);
         this.messages.set([]);
+      })
+    );
+  }
+
+  deleteSingleMessage(messageId: string, roomId: string) {
+    return this.http.delete(`${this.apiUrl}/messages/${messageId}`).pipe(
+      tap(() => {
+        this.messages.update(msgs => msgs.filter(m => (m._id || m.id) !== messageId));
+        this.socket?.emit('delete-message', { messageId, roomId });
       })
     );
   }

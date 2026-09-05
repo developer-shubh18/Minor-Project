@@ -142,6 +142,55 @@ exports.deleteRoom = async (req, res) => {
 };
 
 /**
+ * DELETE /api/chat/messages/:messageId
+ * Deletes a single message (only sender can delete).
+ */
+exports.deleteMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    if (!messageId || !mongoose.Types.ObjectId.isValid(messageId)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid message ID format' });
+    }
+
+    const message = await Message.findById(messageId);
+    if (!message) {
+      return res.status(404).json({ status: 'error', message: 'Message not found' });
+    }
+
+    const currentUserId = req.user.id.toString();
+    const isSender = message.sender.toString() === currentUserId;
+
+    if (!isSender) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Access denied: You can only delete your own messages'
+      });
+    }
+
+    const roomId = message.room;
+    await Message.findByIdAndDelete(messageId);
+
+    // If this was the room's lastMessage, update it to the previous latest message
+    const room = await Room.findById(roomId);
+    if (room && room.lastMessage && room.lastMessage.toString() === messageId.toString()) {
+      const prevMessage = await Message.findOne({ room: roomId }).sort('-createdAt');
+      room.lastMessage = prevMessage ? prevMessage._id : null;
+      await room.save();
+    }
+
+    res.json({
+      status: 'success',
+      message: 'Message deleted successfully',
+      messageId,
+      roomId
+    });
+  } catch (err) {
+    console.error('[ChatController.deleteMessage] Error:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
  * POST /api/chat/rooms/:roomId/pin
  * Toggles room pin for the authenticated user (guarded by verifyRoomParticipant).
  */

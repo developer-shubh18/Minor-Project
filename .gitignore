@@ -15,9 +15,11 @@ bazel-out/
 .angular/cache
 
 # Environment files
+*.env
 .env
 .env.local
 .env.*.local
+atlas-credentials.env
 
 # IDEs and editors
 .idea/
@@ -45,7 +47,8 @@ bazel-out/
 testem.log
 /typings
 __screenshots__/
-
+*.tsbuildinfo
+*.json
 # System files
 .DS_Store
 Thumbs.db

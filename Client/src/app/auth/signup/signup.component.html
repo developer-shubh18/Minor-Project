@@ -17,6 +17,15 @@
     <h2>Create your account</h2>
     <p class="auth-subtitle">Join the conversation in seconds</p>
 
+    @if (errorMessage) {
+      <div class="auth-error-banner" role="alert">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span>{{ errorMessage }}</span>
+      </div>
+    }
+
     <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form" id="signup-form">
       <div class="input-group">
         <label for="signup-username">Username</label>
@@ -72,12 +81,15 @@
             <option value="fr">French</option>
             <option value="de">German</option>
             <option value="hi">Hindi</option>
+            <option value="it">Italian</option>
+            <option value="ja">Japanese</option>
+            <option value="zh">Chinese</option>
           </select>
         </div>
       </div>
 
-      <button type="submit" id="signup-submit" class="btn-primary" [disabled]="!form.valid">
-        <span>Create Account</span>
+      <button type="submit" id="signup-submit" class="btn-primary" [disabled]="!form.valid || isLoading">
+        <span>{{ isLoading ? 'Creating Account...' : 'Create Account' }}</span>
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M5 12h14" />

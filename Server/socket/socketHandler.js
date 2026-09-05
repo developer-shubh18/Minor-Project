@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Message = require('../models/Message');
 const Room = require('../models/Room');
 const User = require('../models/User');
@@ -5,46 +6,183 @@ const ModerationLog = require('../models/ModerationLog');
 const { detectLanguage, translateForRecipients } = require('../services/translationService');
 const { moderateMessage, getViolationMessage } = require('../services/contentModerationService');
 
+// In-memory active sockets map: userId -> Set of socketIds (supports multi-device/multi-tab)
+const activeSockets = new Map();
+
 exports.handleSocketEvents = (io, socket) => {
-  const userId = socket.user.id;
+  const userId = socket.user.id.toString();
 
+  // 1. Register socket and manage presence
+  if (!activeSockets.has(userId)) {
+    activeSockets.set(userId, new Set());
+  }
+  activeSockets.get(userId).add(socket.id);
+
+  // Automatically join the user's private notification channel
+  socket.join(`user:${userId}`);
+
+  // Send the current list of online users to the newly connected client
+  socket.emit('initial-online-users', Array.from(activeSockets.keys()));
+
+  // Broadcast user-online event on first connection
+  if (activeSockets.get(userId).size === 1) {
+    User.findByIdAndUpdate(userId, { isOnline: true }).catch(err =>
+      console.error('[SocketHandler] Presence update error:', err)
+    );
+    io.emit('user-online', { userId });
+  }
+
+  /**
+   * join-room
+   * Validates room existence and user membership before granting channel access
+   */
   socket.on('join-room', async (roomId) => {
-    socket.join(roomId);
-    await User.findByIdAndUpdate(userId, { isOnline: true });
-    io.to(roomId).emit('user-joined', { userId, username: socket.user.username });
+    try {
+      if (!roomId || !mongoose.Types.ObjectId.isValid(roomId)) return;
+
+      const room = await Room.findById(roomId);
+      if (!room) return;
+
+      const isParticipant = room.participants.some(p => p.toString() === userId);
+      if (!isParticipant) {
+        socket.emit('error', { message: 'Unauthorized room access' });
+        return;
+      }
+
+      socket.join(roomId);
+    } catch (err) {
+      console.error('[SocketHandler.join-room] Error:', err);
+    }
   });
 
+  /**
+   * leave-room
+   */
   socket.on('leave-room', (roomId) => {
-    socket.leave(roomId);
+    if (roomId) socket.leave(roomId);
   });
 
+  /**
+   * mark-read
+   * Marks unread messages in the room as read by this user and emits messages-read
+   */
+  socket.on('mark-read', async ({ roomId }) => {
+    try {
+      if (!roomId || !mongoose.Types.ObjectId.isValid(roomId)) return;
+
+      const room = await Room.findById(roomId);
+      if (!room || !room.participants.some(p => p.toString() === userId)) return;
+
+      await Message.updateMany(
+        { room: roomId, readBy: { $ne: userId } },
+        { $addToSet: { readBy: userId } }
+      );
+
+      io.to(roomId).emit('messages-read', {
+        roomId,
+        userId,
+        readAt: new Date()
+      });
+    } catch (err) {
+      console.error('[SocketHandler.mark-read] Error:', err);
+    }
+  });
+
+  /**
+   * send-message
+   * Disciplinary checks -> AI Moderation -> Language Detection -> Parallel Translation -> Delivery
+   */
   socket.on('send-message', async ({ roomId, text }) => {
     try {
+      if (!roomId || !text || !text.trim() || !mongoose.Types.ObjectId.isValid(roomId)) return;
+
       const room = await Room.findById(roomId).populate('participants', 'preferredLanguage');
       if (!room) return;
 
-      // --- AI Content Moderation ---
-      const modResult = await moderateMessage(text);
+      const isParticipant = room.participants.some(p => p._id.toString() === userId);
+      if (!isParticipant) {
+        socket.emit('error', { message: 'Unauthorized: You are not a member of this chat' });
+        return;
+      }
 
-      console.log(`[Moderation] ${socket.user.username}: "${text.substring(0, 40)}..." → ${modResult.action} (${modResult.label}, ${(modResult.confidence * 100).toFixed(0)}%)`);
-
-      // BLOCKED → notify sender, don't deliver
-      if (modResult.action === 'blocked') {
-        await ModerationLog.create({
-          room: roomId, sender: userId, originalText: text,
-          action: 'blocked', score: modResult.confidence,
-          primaryCategory: modResult.label,
-        });
-
+      // --- Disciplinary Check: Mute status ---
+      const user = await User.findById(userId);
+      if (user && user.mutedUntil && new Date(user.mutedUntil) > new Date()) {
+        const remainingMs = new Date(user.mutedUntil).getTime() - Date.now();
+        const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
         socket.emit('message-moderated', {
-          action: 'blocked',
-          message: getViolationMessage(modResult),
+          action: 'muted',
+          message: `⛔ You are temporarily muted due to multiple policy violations. Time remaining: ${remainingMinutes} minute(s).`,
+          remainingMinutes,
+          warningCount: user.warningCount || 3,
+          maxWarnings: 3
         });
         return;
       }
 
-      // WARNED → deliver with flag
+      // --- In-Process AI Content Moderation ---
+      const modResult = await moderateMessage(text);
+      const MAX_WARNINGS = 3;
+
+      console.log(`[Moderation] ${socket.user.username}: "${text.substring(0, 30)}..." -> ${modResult.action} (${modResult.label}, ${(modResult.confidence * 100).toFixed(0)}%)`);
+
+      // BLOCKED Content
+      if (modResult.action === 'blocked') {
+        user.warningCount = (user.warningCount || 0) + 1;
+        let action = 'blocked';
+        let alertMsg = getViolationMessage(modResult);
+
+        if (user.warningCount >= MAX_WARNINGS) {
+          user.mutedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute mute
+          action = 'muted';
+          alertMsg = `⛔ Maximum violations reached (${MAX_WARNINGS}/${MAX_WARNINGS}). You have been muted for 15 minutes.`;
+        }
+        await user.save();
+
+        await ModerationLog.create({
+          room: roomId, sender: userId, originalText: text,
+          action: action, score: modResult.confidence,
+          primaryCategory: modResult.label,
+        });
+
+        socket.emit('message-moderated', {
+          action: action,
+          message: alertMsg,
+          warningCount: user.warningCount,
+          maxWarnings: MAX_WARNINGS
+        });
+        return;
+      }
+
+      // WARNED Content
       if (modResult.action === 'warned') {
+        user.warningCount = (user.warningCount || 0) + 1;
+        let action = 'warned';
+        let alertMsg = getViolationMessage(modResult);
+
+        if (user.warningCount >= MAX_WARNINGS) {
+          user.mutedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute mute
+          action = 'muted';
+          alertMsg = `⛔ Maximum warnings reached (${MAX_WARNINGS}/${MAX_WARNINGS}). You have been muted for 15 minutes.`;
+          await user.save();
+
+          await ModerationLog.create({
+            room: roomId, sender: userId, originalText: text,
+            action: 'muted', score: modResult.confidence,
+            primaryCategory: modResult.label,
+          });
+
+          socket.emit('message-moderated', {
+            action: 'muted',
+            message: alertMsg,
+            warningCount: user.warningCount,
+            maxWarnings: MAX_WARNINGS
+          });
+          return;
+        }
+
+        await user.save();
+
         await ModerationLog.create({
           room: roomId, sender: userId, originalText: text,
           action: 'warned', score: modResult.confidence,
@@ -53,13 +191,15 @@ exports.handleSocketEvents = (io, socket) => {
 
         socket.emit('message-moderated', {
           action: 'warned',
-          message: getViolationMessage(modResult),
+          message: alertMsg,
+          warningCount: user.warningCount,
+          maxWarnings: MAX_WARNINGS
         });
       }
 
-      // --- Process & deliver message ---
+      // --- Multilingual Translation Processing ---
       const originalLanguage = await detectLanguage(text);
-      const targetLanguages = room.participants.map(p => p.preferredLanguage);
+      const targetLanguages = room.participants.map(p => p.preferredLanguage).filter(Boolean);
       const translations = await translateForRecipients(text, originalLanguage, targetLanguages);
 
       const message = await Message.create({
@@ -73,24 +213,52 @@ exports.handleSocketEvents = (io, socket) => {
           status: modResult.action,
           score: modResult.confidence,
           primaryCategory: modResult.label,
+          violationMessage: getViolationMessage(modResult)
         }
       });
 
-      await message.populate('sender', 'username avatar');
+      await message.populate('sender', 'username avatar isOnline');
       await Room.findByIdAndUpdate(roomId, { lastMessage: message._id });
 
+      // 1. Broadcast to everyone actively viewing the room
       io.to(roomId).emit('new-message', message);
+
+      // 2. Broadcast room-updated to personal user channels for sidebar updates
+      room.participants.forEach(p => {
+        const pId = (p._id || p).toString();
+        io.to(`user:${pId}`).emit('room-updated', {
+          roomId: roomId.toString(),
+          lastMessage: message
+        });
+      });
     } catch (err) {
-      console.error('[SocketHandler] Error:', err);
+      console.error('[SocketHandler.send-message] Error:', err);
       socket.emit('error', { message: err.message });
     }
   });
 
+  /**
+   * typing
+   */
   socket.on('typing', ({ roomId, isTyping }) => {
-    socket.to(roomId).emit('user-typing', { userId, username: socket.user.username, isTyping });
+    if (roomId) {
+      socket.to(roomId).emit('user-typing', { userId, username: socket.user.username, isTyping });
+    }
   });
 
+  /**
+   * disconnect
+   */
   socket.on('disconnect', async () => {
-    await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() });
+    const userSockets = activeSockets.get(userId);
+    if (userSockets) {
+      userSockets.delete(socket.id);
+      if (userSockets.size === 0) {
+        activeSockets.delete(userId);
+        const now = new Date();
+        await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: now });
+        io.emit('user-offline', { userId, lastSeen: now });
+      }
+    }
   });
 };

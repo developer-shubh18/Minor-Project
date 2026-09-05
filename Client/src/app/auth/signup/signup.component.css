@@ -230,3 +230,23 @@
 .auth-footer a {
   font-weight: 600;
 }
+
+/* Error Banner */
+.auth-error-banner {
+  background: rgba(234, 67, 53, 0.12);
+  border: 1px solid rgba(234, 67, 53, 0.35);
+  color: #ff6b6b;
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.auth-error-banner svg {
+  flex-shrink: 0;
+  color: #ff6b6b;
+}

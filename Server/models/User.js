@@ -3,13 +3,20 @@ const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true, trim: true },
-  email: { type: String, required: true, unique: true, lowercase: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, select: false },
   preferredLanguage: { type: String, default: 'en' },
   avatar: { type: String, default: '' },
   about: { type: String, default: 'Hey there! I am using QuickChat' },
   isOnline: { type: Boolean, default: false },
-  lastSeen: { type: Date, default: Date.now }
+  lastSeen: { type: Date, default: Date.now },
+
+  // Disciplinary & Content Moderation Tracking
+  warningCount: { type: Number, default: 0 },
+  mutedUntil: { type: Date, default: null },
+
+  // Soft-deletion flag to protect chat thread integrity
+  isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
 userSchema.pre('save', async function (next) {

@@ -56,11 +56,17 @@ export class RoomListComponent {
   isPartnerOnline(room: any): boolean {
     if (room.isGroup) return false;
     const partner = this.chatService.getChatPartner(room);
-    return partner?.isOnline || false;
+    if (!partner) return false;
+    const partnerId = partner._id || partner.id;
+    return this.chatService.isUserOnline(partnerId);
+  }
+
+  getUnreadCount(room: any): number {
+    return this.chatService.getUnreadCount(room._id);
   }
 
   isRoomPinned(room: any): boolean {
     const userId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
-    return room.pinnedBy?.includes(userId) || room.isPinned;
+    return room.pinnedBy?.some((id: any) => (id._id || id).toString() === userId?.toString()) || room.isPinned;
   }
 }

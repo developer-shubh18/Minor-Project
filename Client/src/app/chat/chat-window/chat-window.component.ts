@@ -247,8 +247,9 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
       return `${room.participants?.length || 0} members`;
     }
 
+    if (this.isPartnerOnline()) return 'online';
+
     const partner = this.chatService.getChatPartner(room);
-    if (partner?.isOnline) return 'online';
     if (partner?.lastSeen) {
       const lastSeen = new Date(partner.lastSeen);
       const now = new Date();
@@ -265,7 +266,9 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     const room = this.chatService.currentRoom();
     if (!room || room.isGroup) return false;
     const partner = this.chatService.getChatPartner(room);
-    return partner?.isOnline || false;
+    if (!partner) return false;
+    const partnerId = partner._id || partner.id;
+    return this.chatService.isUserOnline(partnerId);
   }
 
   // --- Header Actions ---

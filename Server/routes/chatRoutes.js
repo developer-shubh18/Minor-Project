@@ -1,5 +1,6 @@
 const express = require('express');
 const { protect } = require('../middleware/authMiddleware');
+const { verifyRoomParticipant, verifyRoomOwner } = require('../middleware/roomAuthMiddleware');
 const { 
   getRooms, 
   getMessages, 
@@ -18,11 +19,11 @@ router.use(protect);
 
 router.get('/rooms', getRooms);
 router.post('/rooms', createRoom);
-router.delete('/rooms/:roomId', deleteRoom);
-router.delete('/rooms/:roomId/messages', clearRoom);
-router.post('/rooms/:roomId/pin', togglePin);
+router.delete('/rooms/:roomId', verifyRoomParticipant, verifyRoomOwner, deleteRoom);
+router.delete('/rooms/:roomId/messages', verifyRoomParticipant, clearRoom);
+router.post('/rooms/:roomId/pin', verifyRoomParticipant, togglePin);
 
-router.get('/rooms/:roomId/messages', getMessages);
+router.get('/rooms/:roomId/messages', verifyRoomParticipant, getMessages);
 router.get('/users/search', searchUsers);
 
 // Translation endpoints

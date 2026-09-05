@@ -1,12 +1,13 @@
 import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { CommonModule } from '@angular/common';
 import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css'
 })
@@ -15,6 +16,9 @@ export class LoginComponent {
   private authService = inject(AuthService);
   private router = inject(Router);
 
+  errorMessage = '';
+  isLoading = false;
+
   form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
     password: ['', Validators.required]
@@ -22,9 +26,17 @@ export class LoginComponent {
 
   onSubmit() {
     if (this.form.valid) {
+      this.errorMessage = '';
+      this.isLoading = true;
       this.authService.login(this.form.value).subscribe({
-        next: () => this.router.navigate(['/chat']),
-        error: (err) => alert(err.error.message)
+        next: () => {
+          this.isLoading = false;
+          this.router.navigate(['/chat']);
+        },
+        error: (err) => {
+          this.isLoading = false;
+          this.errorMessage = err.error?.message || 'Invalid email or password. Please try again.';
+        }
       });
     }
   }

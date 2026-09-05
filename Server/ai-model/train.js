@@ -35,9 +35,9 @@ const axios = require('axios');
 // ---- Config ----
 const VOCAB_SIZE = 2000;
 const MAX_SEQ_LENGTH = 30;
-const EMBEDDING_DIM = 64;
-const EPOCHS = 40;
-const BATCH_SIZE = 16;
+const EMBEDDING_DIM = 32;
+const EPOCHS = 25;
+const BATCH_SIZE = 32;
 const DATA_DIR = path.join(__dirname, 'training-data');
 const MODEL_DIR = path.join(__dirname, 'trained-model');
 const LABELS = ['clean', 'sexual', 'hate_cultural', 'threat'];
@@ -412,12 +412,11 @@ async function train() {
   console.log('\n🏗️  Building neural network...');
   const model = tf.sequential();
   model.add(tf.layers.embedding({ inputDim: Object.keys(vocab).length, outputDim: EMBEDDING_DIM, inputLength: MAX_SEQ_LENGTH }));
-  model.add(tf.layers.conv1d({ filters: 128, kernelSize: 3, activation: 'relu', padding: 'same' }));
-  model.add(tf.layers.globalMaxPooling1d());
-  model.add(tf.layers.dense({ units: 64, activation: 'relu' }));
-  model.add(tf.layers.dropout({ rate: 0.3 }));
+  model.add(tf.layers.globalAveragePooling1d());
+  model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
+  model.add(tf.layers.dropout({ rate: 0.2 }));
   model.add(tf.layers.dense({ units: LABELS.length, activation: 'softmax' }));
-  model.compile({ optimizer: tf.train.adam(0.001), loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
+  model.compile({ optimizer: tf.train.adam(0.005), loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
   model.summary();
 
   // Train
@@ -426,7 +425,7 @@ async function train() {
     epochs: EPOCHS, batchSize: BATCH_SIZE, validationSplit: 0.15, shuffle: true,
     callbacks: {
       onEpochEnd: (epoch, logs) => {
-        if ((epoch + 1) % 10 === 0 || epoch === 0) {
+        if ((epoch + 1) % 5 === 0 || epoch === 0) {
           console.log(`   Epoch ${String(epoch + 1).padStart(3)}: loss=${logs.loss.toFixed(4)} | acc=${logs.acc.toFixed(4)} | val_loss=${logs.val_loss.toFixed(4)} | val_acc=${logs.val_acc.toFixed(4)}`);
         }
       }

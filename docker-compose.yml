@@ -1,0 +1,51 @@
+services:
+  mongodb:
+    image: mongo:7-jammy
+    container_name: quickchat-mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - quickchat-net
+
+  server:
+    build:
+      context: ./Server
+      dockerfile: Dockerfile
+    container_name: quickchat-backend
+    restart: always
+    ports:
+      - "5001:5001"
+    environment:
+      - PORT=5001
+      - MONGO_URI=mongodb://mongodb:27017/bilingual-chat
+      - JWT_SECRET=quickchat_super_secret_jwt_key_major_project_2026
+      - JWT_EXPIRES_IN=7d
+      - CLIENT_URL=http://localhost:4200
+    depends_on:
+      - mongodb
+    networks:
+      - quickchat-net
+
+  client:
+    build:
+      context: ./Client
+      dockerfile: Dockerfile
+    container_name: quickchat-frontend
+    restart: always
+    ports:
+      - "4200:80"
+    depends_on:
+      - server
+    networks:
+      - quickchat-net
+
+networks:
+  quickchat-net:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local

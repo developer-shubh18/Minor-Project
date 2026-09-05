@@ -100,6 +100,53 @@
     </div>
   </div>
 
+  <!-- Content Moderation Alert -->
+  @if (chatService.moderationAlert()) {
+  <div class="moderation-alert" 
+    [class.alert-blocked]="chatService.moderationAlert()?.action === 'blocked'"
+    [class.alert-warned]="chatService.moderationAlert()?.action === 'warned'"
+    [class.alert-muted]="chatService.moderationAlert()?.action === 'muted'">
+    <div class="moderation-alert-content">
+      <div class="moderation-alert-icon">
+        @if (chatService.moderationAlert()?.action === 'blocked') {
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>
+          </svg>
+        } @else if (chatService.moderationAlert()?.action === 'muted') {
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="1" x2="23" y1="1" y2="23"/>
+            <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+            <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.49-.34 2.18"/>
+            <line x1="12" x2="12" y1="19" y2="22"/>
+          </svg>
+        } @else {
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+            <path d="M12 9v4"/><path d="M12 17h.01"/>
+          </svg>
+        }
+      </div>
+      <div class="moderation-alert-text">
+        <p>{{ chatService.moderationAlert()?.message }}</p>
+        @if (chatService.moderationAlert()?.warningCount) {
+          <span class="moderation-warning-count">Warning {{ chatService.moderationAlert()?.warningCount }} of {{ chatService.moderationAlert()?.maxWarnings }}</span>
+        }
+      </div>
+      <button class="moderation-alert-close" (click)="chatService.moderationAlert.set(null)">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+    @if (chatService.moderationAlert()?.warningCount && chatService.moderationAlert()?.maxWarnings) {
+      <div class="moderation-progress-bar">
+        <div class="moderation-progress-fill" 
+          [style.width.%]="(chatService.moderationAlert()!.warningCount / chatService.moderationAlert()!.maxWarnings) * 100"></div>
+      </div>
+    }
+  </div>
+  }
+
   <!-- Messages Area -->
   <div class="messages-area" #messagesContainer (click)="isMenuOpen.set(false)">
     <!-- Chat wallpaper overlay -->
@@ -114,7 +161,8 @@
       @for (msg of group.messages; track msg._id) {
       <div class="message" [class.own]="isOwnMessage(msg)"
         [class.first-in-group]="msg._isFirstInGroup"
-        [class.last-in-group]="msg._isLastInGroup">
+        [class.last-in-group]="msg._isLastInGroup"
+        [class.moderated-warned]="msg.moderation?.status === 'warned'">
         @if (!isOwnMessage(msg) && chatService.currentRoom()?.isGroup && msg._isFirstInGroup) {
         <div class="msg-sender">{{ msg.sender.username }}</div>
         }
@@ -122,6 +170,17 @@
           <!-- Tail for last message in group -->
           @if (msg._isLastInGroup) {
           <div class="bubble-tail"></div>
+          }
+
+          <!-- Moderation warning badge on message -->
+          @if (msg.moderation?.status === 'warned') {
+          <div class="msg-moderation-badge warned">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+              <path d="M12 9v4"/><path d="M12 17h.01"/>
+            </svg>
+            <span>Content moderated</span>
+          </div>
           }
 
           <p class="msg-text">{{ getMessageText(msg) }}</p>
@@ -137,6 +196,13 @@
           }
 
           <div class="msg-meta">
+            @if (msg.moderation?.status === 'warned') {
+              <span class="msg-moderation-icon" title="This message was flagged by content moderation">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+              </span>
+            }
             <span class="msg-time">{{ msg.createdAt | date:'shortTime' }}</span>
             @if (isOwnMessage(msg)) {
             <span class="msg-ticks" [class.read]="msg.readBy?.length > 1">

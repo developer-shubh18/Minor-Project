@@ -426,3 +426,164 @@
   justify-content: center;
   color: var(--text-muted);
 }
+
+/* ===== CONTENT MODERATION STYLES ===== */
+
+/* Moderation Alert Banner */
+.moderation-alert {
+  position: relative;
+  z-index: 20;
+  animation: slideInDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.moderation-alert-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.moderation-alert.alert-blocked {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.08));
+  border-left: 3px solid #ef4444;
+}
+
+.moderation-alert.alert-blocked .moderation-alert-icon {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.moderation-alert.alert-warned {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.08));
+  border-left: 3px solid #f59e0b;
+}
+
+.moderation-alert.alert-warned .moderation-alert-icon {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.moderation-alert.alert-muted {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(124, 58, 237, 0.08));
+  border-left: 3px solid #8b5cf6;
+}
+
+.moderation-alert.alert-muted .moderation-alert-icon {
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.moderation-alert-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.moderation-alert-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.moderation-alert-text p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.moderation-warning-count {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #f59e0b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.moderation-alert-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+  flex-shrink: 0;
+}
+
+.moderation-alert-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+/* Warning progress bar */
+.moderation-progress-bar {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.moderation-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, #ef4444);
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Moderation badge on message bubble */
+.msg-moderation-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.msg-moderation-badge.warned {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Moderated message bubble style */
+.message.moderated-warned .msg-bubble {
+  border: 1px solid rgba(245, 158, 11, 0.15);
+}
+
+/* Moderation icon in message meta */
+.msg-moderation-icon {
+  display: flex;
+  align-items: center;
+  margin-right: 2px;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}

@@ -1,7 +1,9 @@
 const Message = require('../models/Message');
 const Room = require('../models/Room');
 const User = require('../models/User');
+const ModerationLog = require('../models/ModerationLog');
 const { detectLanguage, translateForRecipients } = require('../services/translationService');
+const { moderateMessage, getViolationMessage } = require('../services/contentModerationService');
 
 exports.handleSocketEvents = (io, socket) => {
   const userId = socket.user.id;
@@ -21,6 +23,41 @@ exports.handleSocketEvents = (io, socket) => {
       const room = await Room.findById(roomId).populate('participants', 'preferredLanguage');
       if (!room) return;
 
+      // --- AI Content Moderation ---
+      const modResult = await moderateMessage(text);
+
+      console.log(`[Moderation] ${socket.user.username}: "${text.substring(0, 40)}..." → ${modResult.action} (${modResult.label}, ${(modResult.confidence * 100).toFixed(0)}%)`);
+
+      // BLOCKED → notify sender, don't deliver
+      if (modResult.action === 'blocked') {
+        await ModerationLog.create({
+          room: roomId, sender: userId, originalText: text,
+          action: 'blocked', score: modResult.confidence,
+          primaryCategory: modResult.label,
+        });
+
+        socket.emit('message-moderated', {
+          action: 'blocked',
+          message: getViolationMessage(modResult),
+        });
+        return;
+      }
+
+      // WARNED → deliver with flag
+      if (modResult.action === 'warned') {
+        await ModerationLog.create({
+          room: roomId, sender: userId, originalText: text,
+          action: 'warned', score: modResult.confidence,
+          primaryCategory: modResult.label,
+        });
+
+        socket.emit('message-moderated', {
+          action: 'warned',
+          message: getViolationMessage(modResult),
+        });
+      }
+
+      // --- Process & deliver message ---
       const originalLanguage = await detectLanguage(text);
       const targetLanguages = room.participants.map(p => p.preferredLanguage);
       const translations = await translateForRecipients(text, originalLanguage, targetLanguages);
@@ -31,7 +68,12 @@ exports.handleSocketEvents = (io, socket) => {
         originalText: text,
         originalLanguage,
         translations,
-        readBy: [userId]
+        readBy: [userId],
+        moderation: {
+          status: modResult.action,
+          score: modResult.confidence,
+          primaryCategory: modResult.label,
+        }
       });
 
       await message.populate('sender', 'username avatar');
@@ -39,6 +81,7 @@ exports.handleSocketEvents = (io, socket) => {
 
       io.to(roomId).emit('new-message', message);
     } catch (err) {
+      console.error('[SocketHandler] Error:', err);
       socket.emit('error', { message: err.message });
     }
   });

@@ -9,7 +9,20 @@ const messageSchema = new mongoose.Schema({
     language: String,
     text: String
   }],
-  readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
+  readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+
+  // Content Moderation Fields
+  moderation: {
+    status: {
+      type: String,
+      enum: ['clean', 'warned', 'blocked'],
+      default: 'clean'
+    },
+    score: { type: Number, default: 0 },
+    primaryCategory: { type: String },
+    wasSanitized: { type: Boolean, default: false },
+    violationMessage: { type: String }
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Message', messageSchema);

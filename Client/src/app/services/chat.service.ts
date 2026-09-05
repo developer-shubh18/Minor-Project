@@ -16,6 +16,7 @@ export class ChatService {
   currentRoom = signal<any>(null);
   typingUsers = signal<any[]>([]);
   onlineUsers = signal<Set<string>>(new Set());
+  moderationAlert = signal<any>(null);
 
   connect() {
     const token = this.authService.token();
@@ -59,6 +60,16 @@ export class ChatService {
         newSet.delete(data.userId);
         return newSet;
       });
+    });
+
+    // Content moderation events
+    this.socket.on('message-moderated', (data: any) => {
+      this.moderationAlert.set(data);
+      // Auto-dismiss after 8 seconds for warnings, 12 for blocks/mutes
+      const dismissTime = data.action === 'warned' ? 8000 : 12000;
+      setTimeout(() => {
+        this.moderationAlert.set(null);
+      }, dismissTime);
     });
   }
 

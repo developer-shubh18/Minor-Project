@@ -46,6 +46,11 @@
   flex-shrink: 0;
 }
 
+.header-avatar.group-avatar {
+  background: rgba(0, 168, 132, 0.15);
+  color: var(--accent);
+}
+
 .header-avatar span {
   font-size: 1.05rem;
   font-weight: 500;

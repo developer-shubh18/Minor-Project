@@ -76,10 +76,16 @@ flowchart TB
 ### 2.1 Presentation Tier (Client SPA)
 - **Framework**: Angular 21 with native Zoneless change detection (`provideZonelessChangeDetection()`), completely removing the runtime monkey-patching overhead of `zone.js`.
 - **State Management**: Reactive Angular Signals (`signal`, `computed`, `effect`) ensuring granular, DOM-level rendering without zone sweeps.
+- **Component Architecture**:
+  - `ChatLayoutComponent`: Root shell orchestrating sidebar navigation, responsive breakpoints, user menu, and modal triggers.
+  - `ChatWindowComponent`: Active conversation thread, translation controls, virtual pagination loader, moderation warning banners, and group participant summaries.
+  - `RoomListComponent`: Real-time room list with unread count pills, pin indicators, presence status, and group badges.
+  - `UserSearchComponent`: Instant user search for starting direct messages.
+  - `CreateGroupModalComponent`: Multi-participant selection with live user search, removable chips, custom group naming, and dynamic count badges.
 - **Interceptors**: 
   - `auth.interceptor.ts`: Attaches standard `Authorization: Bearer <token>` headers to outgoing REST requests.
   - Automatic `401 Unauthorized` detection and session eviction, preventing frozen states upon token expiration.
-- **Real-Time Synchronizer**: `chat.service.ts` coordinates socket lifecycles (`connect`, `disconnect`, `connect_error`, `reconnect`) and maintains in-memory unread counts, active room state, and typing statuses.
+- **Real-Time Synchronizer**: `chat.service.ts` coordinates socket lifecycles (`connect`, `disconnect`, `connect_error`, `reconnect`), dynamic room events (`room-created`, `room-updated`), and maintains in-memory unread counts, active room state, and typing statuses.
 
 ---
 
@@ -231,3 +237,22 @@ erDiagram
 3. `Room`: `{ participants: 1 }` (user conversation discovery).
 4. `Room`: `{ updatedAt: -1 }` (sidebar sorting by recent activity).
 5. `ModerationLog`: `{ sender: 1, createdAt: -1 }` (admin audit log lookups).
+
+---
+
+## 2.6 Automated Testing & Verification Architecture
+
+QuickChat utilizes Jest for automated backend unit and integration testing, covering 18 test cases across 5 dedicated suites:
+
+```
+Server/tests/
+├── groupChat.test.js           # Group room creation, custom name, createdBy & Socket.IO broadcast
+├── roomAuth.test.js            # IDOR prevention, participant authorization, malformed ObjectId handling
+├── messageDelete.test.js       # Message-level deletion, author ownership validation & cascade updates
+├── moderation.test.js          # In-process TensorFlow.js inference, confidence boundaries & classification
+└── securityValidation.test.js  # Input sanitization, password strength, regex & express-validator chains
+```
+
+- **Execution Command**: `npm test` (with `--detectOpenHandles --forceExit`)
+- **Frontend Verification**: `npx ng build --configuration=development` ensuring strict TypeScript & Angular template compilation.
+

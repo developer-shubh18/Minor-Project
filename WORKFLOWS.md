@@ -237,3 +237,57 @@ sequenceDiagram
     Controller-->>Angular: 200 OK ({ status: 'success' })
     Angular->>Angular: Remove room from sidebar & reset active view
 ```
+
+---
+
+## 7. Group Creation & Multi-User Real-Time Synchronization
+
+This sequence details the interactive group creation process, participant selection, backend room initialization, and real-time Socket.IO fanout to all member dashboards.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Creator as Group Creator (User A)
+    participant Modal as CreateGroupModalComponent
+    participant Service as ChatService
+    participant API as Express Chat Controller
+    participant DB as MongoDB Atlas
+    participant Socket as Socket.IO Engine
+    actor Member1 as Member (User B)
+    actor Member2 as Member (User C)
+
+    Creator->>Modal: Clicks "+ New Group" button
+    Modal->>Modal: Opens modal UI
+    Creator->>Modal: Types in Search Input ("alice", "bob")
+    Modal->>Service: searchUsers(query)
+    Service->>API: GET /api/chat/users/search?q=query
+    API->>DB: User.find({ username: /query/i })
+    DB-->>API: Matching user list
+    API-->>Modal: Display search results
+    Creator->>Modal: Clicks to select User B & User C
+    Modal->>Modal: Adds removable chips for User B & User C
+    Creator->>Modal: Enters Group Name ("Core Team") & clicks "Create Group"
+
+    Modal->>Service: createGroup("Core Team", [idB, idC])
+    Service->>API: POST /api/chat/rooms { name: "Core Team", participantIds: [idB, idC], isGroup: true }
+    API->>API: Deduplicate & validate IDs: [idA, idB, idC]
+    API->>DB: Room.create({ name: "Core Team", isGroup: true, createdBy: idA, participants: [idA, idB, idC] })
+    DB-->>API: Created Room document
+    API->>DB: room.populate('participants', 'username avatar isOnline lastSeen')
+    DB-->>API: Populated Room
+
+    Note over API,Socket: Real-Time Multi-Channel Broadcast
+    API->>Socket: io.to('user:idA').emit('room-created', populatedRoom)
+    API->>Socket: io.to('user:idB').emit('room-created', populatedRoom)
+    API->>Socket: io.to('user:idC').emit('room-created', populatedRoom)
+
+    API-->>Service: 201 Created ({ status: 'success', room: populatedRoom })
+    Service->>Service: Prepend new group to rooms signal & selectRoom(room)
+    Modal-->>Creator: Closes modal & navigates to new group chat window
+
+    Socket-->>Member1: Emits 'room-created' on personal channel
+    Member1->>Member1: chat.service prepends group to rooms list without reload
+    Socket-->>Member2: Emits 'room-created' on personal channel
+    Member2->>Member2: chat.service prepends group to rooms list without reload
+```
+

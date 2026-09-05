@@ -5,6 +5,7 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.io-4.6-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io/)
 [![TensorFlow.js](https://img.shields.io/badge/TensorFlow.js-In--Process_AI-FF6F00?style=for-the-badge&logo=tensorflow&logoColor=white)](https://www.tensorflow.org/js)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Jest Tests](https://img.shields.io/badge/Jest_Tests-18%2F18_Passing-brightgreen?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
 [![License](https://img.shields.io/badge/License-Academic_Major_Project-blue?style=for-the-badge)](#)
 
 > **Major Project (Capstone)**  
@@ -178,8 +179,9 @@ Base URL: `http://localhost:5001/api`
 | Method | Endpoint | Access | Body / Query | Description | Status Codes |
 |---|---|---|---|---|---|
 | `GET` | `/chat/rooms` | Protected | `Header: Bearer <token>` | Retrieves user's active rooms (pinned chats sorted first). | `200 OK`, `401 Unauthorized` |
-| `POST` | `/chat/rooms` | Protected | `{ participantIds: string[], name?: string, isGroup?: boolean }` | Creates a new DM or Group room (deduplicated). | `201 Created`, `400 Bad Request` |
-| `GET` | `/chat/rooms/:roomId/messages` | Protected (Member) | `Header: Bearer <token>` | Retrieves last 100 messages for an authorized room. | `200 OK`, `403 Forbidden` |
+| `POST` | `/chat/rooms` | Protected | `{ participantIds: string[], name?: string, isGroup?: boolean }` | Creates a new DM or Group room with custom name & broadcast. | `201 Created`, `400 Bad Request` |
+| `GET` | `/chat/rooms/:roomId/messages` | Protected (Member) | `?before=<date>&limit=50` | Cursor-paginated message retrieval for authorized rooms. | `200 OK`, `403 Forbidden` |
+| `DELETE` | `/chat/messages/:messageId` | Protected (Author) | `Header: Bearer <token>` | Deletes an individual message sent by the user. | `200 OK`, `403 Forbidden` |
 | `POST` | `/chat/rooms/:roomId/pin` | Protected (Member) | `Header: Bearer <token>` | Toggles pin state for the authenticated user. | `200 OK`, `403 Forbidden` |
 | `DELETE` | `/chat/rooms/:roomId/messages` | Protected (Member) | `Header: Bearer <token>` | Clears chat message history within the room. | `200 OK`, `403 Forbidden` |
 | `DELETE` | `/chat/rooms/:roomId` | Protected (Member) | `Header: Bearer <token>` | Deletes room and associated messages. | `200 OK`, `403 Forbidden` |
@@ -199,7 +201,7 @@ Base URL: `http://localhost:5001/api`
 | Method | Endpoint | Access | Body / Query | Description | Status Codes |
 |---|---|---|---|---|---|
 | `GET` | `/moderation/stats` | Protected | `Header: Bearer <token>` | Returns aggregate moderation metrics and breakdown. | `200 OK` |
-| `GET` | `/moderation/logs` | Protected | `?page=1&limit=20` | Returns paginated audit logs of flagged content. | `200 OK` |
+| `GET` | `/moderation/logs` | Protected (Admin) | `?page=1&limit=20` | Returns paginated audit logs of flagged content. | `200 OK`, `403 Forbidden` |
 
 ---
 
@@ -219,9 +221,12 @@ const socket = io('http://localhost:5001', {
 | `join-room` | Client $\rightarrow$ Server | `roomId: string` | Client enters a chat room channel (membership verified). |
 | `leave-room` | Client $\rightarrow$ Server | `roomId: string` | Client exits a chat room channel. |
 | `send-message` | Client $\rightarrow$ Server | `{ roomId: string, text: string }` | Sends message into the AI moderation and translation pipeline. |
+| `delete-message` | Client $\rightarrow$ Server | `{ messageId: string, roomId: string }` | Broadcasts deletion of a specific message across the room. |
 | `typing` | Client $\rightarrow$ Server | `{ roomId: string, isTyping: boolean }` | Broadcasts typing state to other participants. |
 | `mark-read` | Client $\rightarrow$ Server | `{ roomId: string }` | Marks all unread messages in the room as read by user. |
 | `new-message` | Server $\rightarrow$ Client | `Message` (populated) | Broadcasts newly delivered, moderated message. |
+| `message-deleted` | Server $\rightarrow$ Client | `{ messageId, roomId }` | Real-time removal of deleted message from participant views. |
+| `room-created` | Server $\rightarrow$ Client | `Room` (populated) | Real-time broadcast on `user:<id>` channel adding new group to sidebar. |
 | `room-updated` | Server $\rightarrow$ Client | `{ roomId, lastMessage }` | Real-time update emitted to participants' personal channels for sidebar previews. |
 | `user-typing` | Server $\rightarrow$ Client | `{ userId, username, isTyping }` | Notifies recipients of active typing activity. |
 | `messages-read` | Server $\rightarrow$ Client | `{ roomId, userId, readAt }` | Triggers double-blue ticks on sender's active interface. |
@@ -297,15 +302,16 @@ Chatting app/
 │   │   ├── app/
 │   │   │   ├── auth/                   # Authentication (Login / Signup)
 │   │   │   ├── chat/
-│   │   │   │   ├── chat-layout/        # Chat shell (sidebar + main viewport)
+│   │   │   │   ├── chat-layout/        # Chat shell (sidebar + main viewport + modal trigger)
 │   │   │   │   ├── chat-window/        # Thread bubbles, translation bar, moderation banners
+│   │   │   │   ├── create-group-modal/ # Interactive group creation modal
 │   │   │   │   ├── room-list/          # Left conversation list, pinned items, unread badges
 │   │   │   │   └── user-search/        # User discovery modal
 │   │   │   ├── landing/                # Public animated product showcase
 │   │   │   ├── profile/                # User profile editor & language selector
 │   │   │   ├── settings/               # Password management & account deletion
 │   │   │   ├── guards/                 # Angular Route Guards (AuthGuard)
-│   │   │   ├── interceptors/           # HTTP Interceptor (JWT injection & error handling)
+│   │   │   ├── interceptors/           # HTTP Interceptor (JWT injection & 401 auto-logout)
 │   │   │   └── services/               # Angular Signals Services (Auth, Chat, Translation, User)
 │   │   ├── styles.css                  # Design system tokens (WhatsApp Dark Theme)
 │   │   └── main.ts                     # Application bootstrap with zoneless change detection
@@ -330,6 +336,12 @@ Chatting app/
 │   │   └── translationService.js       # Parallel Google GTX translation with exponential backoff retry
 │   ├── socket/
 │   │   └── socketHandler.js            # Real-time WebSocket event listeners, presence & socket throttler
+│   ├── tests/                          # 18 Automated Jest Unit Tests (5 suites)
+│   │   ├── groupChat.test.js
+│   │   ├── roomAuth.test.js
+│   │   ├── messageDelete.test.js
+│   │   ├── moderation.test.js
+│   │   └── securityValidation.test.js
 │   ├── utils/
 │   │   └── logger.js                   # Winston structured logger & HTTP requestLogger middleware
 │   ├── .env.example                    # Clean environment configuration template

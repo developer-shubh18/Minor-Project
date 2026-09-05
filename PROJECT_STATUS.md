@@ -48,7 +48,8 @@
 #### B. Real-Time Chat & Collaboration
 | Capability | Status | Implementation Details |
 |:---|:---:|:---|
-| **1:1 Direct Messages & Groups** | ✅ | Dynamic room generation with participant deduplication and authorization. |
+| **1:1 Direct Messages** | ✅ | Dynamic room generation with participant deduplication and authorization. |
+| **Group Creation & Management** | ✅ | Interactive modal with live user search, removable member chips, custom naming, and real-time broadcast (`room-created`). |
 | **Real-Time Delivery & Sync** | ✅ | Instant broadcast to active room participants and background preview channels (`user:id`). |
 | **Cursor Pagination** | ✅ | `GET /messages?before=<timestamp>&limit=50` with "Load earlier messages" UI button. |
 | **Single Message Deletion** | ✅ | Message-level deletion (`DELETE /messages/:id`) synchronized across active screens. |
@@ -85,25 +86,34 @@
 | **Database Indexing** | ✅ | Compound Mongoose indexes on messages (`{ room: 1, createdAt: 1 }`) and rooms (`{ participants: 1 }`). |
 | **Structured Logging** | ✅ | Winston logger with HTTP request logging and formatted console output. |
 | **Redis Cluster Support** | ✅ | `@socket.io/redis-adapter` configuration for multi-node horizontal scaling. |
-| **Automated Test Suite** | ✅ | 16 Jest unit tests covering auth, security validation, room guards, and moderation. |
+| **Automated Test Suite** | ✅ | 18 Jest unit tests covering auth, security validation, room guards, moderation, and group creation. |
 
 ---
 
-## PART 2: FUTURE SCOPE & EXTENSIONS
+## PART 2: FUTURE SCOPE & EXTENSIONS ROADMAP
 
-### 2.1 Short-Term Enhancements (Post-Evaluation)
-1. **Media & File Attachments**: S3 / Cloudinary integration for photos, PDFs, and voice clips.
-2. **Emoji & Reaction Picker**: Quick inline reactions (❤️, 👍, 😂) on message bubbles.
-3. **Browser Push Notifications**: Service Worker Web Push API for background notifications.
+### 2.1 Completed Extensions
+1. **Group Creation & Multi-User Management** (✅ **Completed**):
+   - Interactive group creation modal with real-time member search and removable chips.
+   - Custom group title support with character length enforcement.
+   - Dynamic Socket.IO `room-created` broadcasting across personal notification channels (`user:<id>`).
+   - Group header participant preview (*"You, Alice, Bob (3 members)"*) and sender badges.
+   - Complete Jest test suite (`Server/tests/groupChat.test.js`).
+
+### 2.2 Short-Term Enhancements
+1. **Media & File Attachments**: S3 / Cloudinary integration for photos, PDFs, documents, and voice clips.
+2. **Emoji & Reaction Picker**: Quick inline reactions (❤️, 👍, 😂, 🎉) on message bubbles.
+3. **Browser Push Notifications**: Service Worker Web Push API for background and closed-tab notifications.
 4. **Group Admin Panel**: Granular permissions for kicking members, changing avatars, and assigning co-admins.
 
-### 2.2 Medium-Term Extensions
-1. **End-to-End Encryption (E2EE)**: Implementation of the Signal Protocol (Double Ratchet Algorithm) for client-side encryption.
-2. **WebRTC Voice & Video Calls**: P2P audio/video calling using WebRTC mesh or SFU.
+### 2.3 Medium-Term Extensions
+1. **End-to-End Encryption (E2EE)**: Implementation of the Signal Protocol (Double Ratchet Algorithm) for client-side cryptographic message encryption.
+2. **WebRTC Voice & Video Calls**: P2P audio/video calling using WebRTC mesh or SFU media servers.
 3. **Admin Web Dashboard**: Dedicated Angular frontend for reviewing live moderation graphs and banning toxic accounts.
-4. **Refresh Token Rotation**: HttpOnly cookie-based refresh tokens for enterprise session management.
+4. **Refresh Token Rotation**: HttpOnly cookie-based refresh tokens for enterprise session security.
 
-### 2.3 Long-Term Vision
+### 2.4 Long-Term Vision
 1. **Cross-Platform Mobile App**: React Native or Flutter client reusing the same REST & Socket.IO backend.
 2. **Generative AI Chat Assistant**: LLM integration (Gemini API) for contextual smart replies, conversation summaries, and real-time meeting transcription.
 3. **Self-Hosted Neural Translation**: Containerized LibreTranslate / MarianMT instances for 100% offline bilingual capabilities.
+

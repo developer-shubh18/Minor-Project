@@ -62,7 +62,7 @@ exports.createRoom = async (req, res) => {
     }
 
     // Check if DM already exists between these 2 users
-    const isGroupChat = Boolean(isGroup && uniqueIds.length > 2);
+    const isGroupChat = Boolean(isGroup);
     if (!isGroupChat && uniqueIds.length === 2) {
       const existing = await Room.findOne({
         isGroup: false,
@@ -75,13 +75,22 @@ exports.createRoom = async (req, res) => {
     }
 
     const room = await Room.create({
-      name: isGroupChat ? (name?.trim() || 'Group Chat') : 'Direct Message',
+      name: isGroupChat ? (name?.trim() || 'New Group') : 'Direct Message',
       participants: uniqueIds,
       isGroup: isGroupChat,
       createdBy: req.user.id
     });
 
     await room.populate('participants', 'username avatar isOnline lastSeen');
+
+    // Broadcast real-time room creation event to all members' personal notification channels
+    const io = req.app.get('io');
+    if (io) {
+      uniqueIds.forEach(pId => {
+        io.to(`user:${pId}`).emit('room-created', room);
+      });
+    }
+
     res.status(201).json({ status: 'success', room });
   } catch (err) {
     console.error('[ChatController.createRoom] Error:', err);

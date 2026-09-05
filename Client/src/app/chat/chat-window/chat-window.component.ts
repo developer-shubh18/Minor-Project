@@ -233,6 +233,18 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     return this.getRoomDisplayName()?.charAt(0)?.toUpperCase() || '?';
   }
 
+  getGroupParticipantsText(room?: any): string {
+    const targetRoom = room || this.chatService.currentRoom();
+    if (!targetRoom || !targetRoom.isGroup) return '';
+    const currentUserId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
+    const names = (targetRoom.participants || []).map((p: any) => {
+      const pId = p._id || p.id || p;
+      if (pId?.toString() === currentUserId?.toString()) return 'You';
+      return p.username || 'User';
+    });
+    return names.join(', ');
+  }
+
   getStatusText(): string {
     const room = this.chatService.currentRoom();
     if (!room) return '';
@@ -244,7 +256,9 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     }
 
     if (room.isGroup) {
-      return `${room.participants?.length || 0} members`;
+      const count = room.participants?.length || 0;
+      const participantsStr = this.getGroupParticipantsText(room);
+      return participantsStr ? `${participantsStr} (${count} members)` : `${count} members`;
     }
 
     if (this.isPartnerOnline()) return 'online';

@@ -110,6 +110,16 @@ export class ChatService {
       this.updateRoomLastMessage(data.roomId, data.lastMessage);
     });
 
+    // Handle real-time room creation broadcast
+    this.socket.on('room-created', (room: any) => {
+      this.rooms.update(rooms => {
+        if (!rooms.some(r => r._id === room._id)) {
+          return [room, ...rooms];
+        }
+        return rooms;
+      });
+    });
+
     // Handle real-time single message deletion
     this.socket.on('message-deleted', (data: { messageId: string, roomId: string }) => {
       const activeRoom = this.currentRoom();
@@ -254,6 +264,10 @@ export class ChatService {
 
   createRoom(participantIds: string[], name?: string, isGroup = false) {
     return this.http.post(`${this.apiUrl}/rooms`, { participantIds, name, isGroup });
+  }
+
+  createGroup(name: string, participantIds: string[]) {
+    return this.createRoom(participantIds, name, true);
   }
 
   selectRoom(room: any) {

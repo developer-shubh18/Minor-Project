@@ -1,15 +1,16 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { ChatService } from '../../services/chat.service';
 import { AuthService } from '../../services/auth.service';
 import { RoomListComponent } from '../room-list/room-list.component';
 import { ChatWindowComponent } from '../chat-window/chat-window.component';
 import { UserSearchComponent } from '../user-search/user-search.component';
+import { CreateGroupModalComponent } from '../create-group-modal/create-group-modal.component';
 
 @Component({
   selector: 'app-chat-layout',
   standalone: true,
-  imports: [RoomListComponent, ChatWindowComponent, UserSearchComponent],
+  imports: [RoomListComponent, ChatWindowComponent, UserSearchComponent, CreateGroupModalComponent],
   templateUrl: './chat-layout.component.html',
   styleUrl: './chat-layout.component.css'
 })
@@ -19,6 +20,7 @@ export class ChatLayoutComponent implements OnInit, OnDestroy {
   private router = inject(Router);
 
   showDropdown = false;
+  showGroupModal = signal(false);
 
   ngOnInit() {
     this.chatService.connect();
@@ -36,6 +38,19 @@ export class ChatLayoutComponent implements OnInit, OnDestroy {
 
   closeDropdown() {
     this.showDropdown = false;
+  }
+
+  openGroupModal() {
+    this.showDropdown = false;
+    this.showGroupModal.set(true);
+  }
+
+  closeGroupModal() {
+    this.showGroupModal.set(false);
+  }
+
+  onGroupCreated(room: any) {
+    this.showGroupModal.set(false);
   }
 
   goToProfile() {

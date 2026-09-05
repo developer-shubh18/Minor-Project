@@ -43,6 +43,8 @@ if (process.env.REDIS_URL) {
     });
 }
 
+app.set('io', io);
+
 // Middleware
 app.use(requestLogger);
 app.use(cors({

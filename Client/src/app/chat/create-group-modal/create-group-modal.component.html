@@ -1,0 +1,173 @@
+<div class="modal-backdrop" (click)="onClose()">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    
+    <!-- Modal Header -->
+    <div class="modal-header">
+      <div class="header-title-box">
+        <div class="header-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+        <div>
+          <h3>Create New Group</h3>
+          <p>Start a group conversation with multiple members</p>
+        </div>
+      </div>
+      <button class="close-btn" (click)="onClose()" title="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="modal-body">
+      
+      <!-- Group Name Input -->
+      <div class="form-group">
+        <label for="group-name-input">Group Subject / Name</label>
+        <div class="input-wrapper">
+          <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <input
+            id="group-name-input"
+            type="text"
+            [ngModel]="groupName()"
+            (ngModelChange)="groupName.set($event)"
+            placeholder="e.g. Major Project Team, AI Study Group..."
+            maxlength="50"
+            autocomplete="off"
+          />
+          <span class="char-count">{{ groupName().length }}/50</span>
+        </div>
+      </div>
+
+      <!-- Selected Members Chips -->
+      @if (selectedUsers().length > 0) {
+      <div class="selected-members-section">
+        <label>Selected Members ({{ selectedUsers().length }})</label>
+        <div class="chips-container">
+          @for (user of selectedUsers(); track user._id || user.id) {
+          <div class="member-chip">
+            <span class="chip-initial">{{ (user.username || 'U').charAt(0).toUpperCase() }}</span>
+            <span class="chip-name">{{ user.username }}</span>
+            <button class="chip-remove" (click)="removeUser(user._id || user.id)" title="Remove">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+          }
+        </div>
+      </div>
+      }
+
+      <!-- Search Members Input -->
+      <div class="form-group">
+        <label for="member-search-input">Add Participants</label>
+        <div class="input-wrapper search-wrapper">
+          <svg class="input-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input
+            id="member-search-input"
+            type="text"
+            [ngModel]="searchQuery()"
+            (ngModelChange)="onSearchChange($event)"
+            placeholder="Search users by name or email..."
+            autocomplete="off"
+          />
+        </div>
+      </div>
+
+      <!-- Search Results List -->
+      @if (searchResults().length > 0) {
+      <div class="users-list">
+        @for (user of searchResults(); track user._id || user.id) {
+        <div 
+          class="user-row" 
+          [class.selected]="isSelected(user._id || user.id)"
+          (click)="toggleUser(user)"
+        >
+          <div class="user-row-avatar">
+            <span>{{ (user.username || 'U').charAt(0).toUpperCase() }}</span>
+            @if (user.isOnline) {
+              <div class="user-online-dot"></div>
+            }
+          </div>
+          <div class="user-row-details">
+            <strong>{{ user.username }}</strong>
+            <small>{{ user.email }}</small>
+          </div>
+          <div class="checkbox-indicator" [class.checked]="isSelected(user._id || user.id)">
+            @if (isSelected(user._id || user.id)) {
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            }
+          </div>
+        </div>
+        }
+      </div>
+      } @else if (searchQuery().trim() && searchResults().length === 0) {
+      <div class="empty-search">
+        <p>No matching users found</p>
+      </div>
+      }
+
+      <!-- Error message -->
+      @if (errorMessage()) {
+      <div class="error-banner">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>
+        </svg>
+        <span>{{ errorMessage() }}</span>
+      </div>
+      }
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="onClose()" [disabled]="isSubmitting()">
+        Cancel
+      </button>
+      <button 
+        class="btn btn-primary" 
+        (click)="submitGroup()" 
+        [disabled]="isSubmitting() || !groupName().trim() || selectedUsers().length === 0"
+      >
+        @if (isSubmitting()) {
+          <span class="btn-spinner"></span>
+          <span>Creating...</span>
+        } @else {
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <line x1="19" x2="19" y1="8" y2="14"/>
+            <line x1="22" x2="16" y1="11" y2="11"/>
+          </svg>
+          <span>Create Group ({{ selectedUsers().length + 1 }} members)</span>
+        }
+      </button>
+    </div>
+
+  </div>
+</div>

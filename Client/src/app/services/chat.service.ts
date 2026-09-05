@@ -19,12 +19,44 @@ export class ChatService {
   onlineUsers = signal<Set<string>>(new Set());
   moderationAlert = signal<any>(null);
   unreadCounts = signal<Map<string, number>>(new Map());
+  connectionStatus = signal<'connected' | 'reconnecting' | 'disconnected'>('disconnected');
+  hasMoreMessages = signal<boolean>(false);
+  loadingOlder = signal<boolean>(false);
 
   connect() {
     const token = this.authService.token();
     if (!token || this.socket?.connected) return;
 
-    this.socket = io(environment.socketUrl, { auth: { token } });
+    this.socket = io(environment.socketUrl, {
+      auth: { token },
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000
+    });
+
+    this.socket.on('connect', () => {
+      this.connectionStatus.set('connected');
+      const active = this.currentRoom();
+      if (active) this.joinRoom(active._id);
+    });
+
+    this.socket.on('disconnect', () => {
+      this.connectionStatus.set('disconnected');
+    });
+
+    this.socket.on('connect_error', () => {
+      this.connectionStatus.set('reconnecting');
+    });
+
+    this.socket.io.on('reconnect_attempt', () => {
+      this.connectionStatus.set('reconnecting');
+    });
+
+    this.socket.io.on('reconnect', () => {
+      this.connectionStatus.set('connected');
+      const active = this.currentRoom();
+      if (active) this.joinRoom(active._id);
+    });
 
     // Initial online users list on connection
     this.socket.on('initial-online-users', (userIds: string[]) => {
@@ -159,14 +191,38 @@ export class ChatService {
     );
   }
 
-  getMessages(roomId: string) {
-    return this.http.get(`${this.apiUrl}/rooms/${roomId}/messages`).pipe(
+  getMessages(roomId: string, before?: string) {
+    const url = before
+      ? `${this.apiUrl}/rooms/${roomId}/messages?before=${encodeURIComponent(before)}&limit=50`
+      : `${this.apiUrl}/rooms/${roomId}/messages?limit=50`;
+
+    return this.http.get(url).pipe(
       tap((res: any) => {
-        this.messages.set(res.messages || []);
-        // Mark room as read upon fetching messages
-        this.markRead(roomId);
+        const fetchedMessages = res.messages || [];
+        this.hasMoreMessages.set(res.hasMore || false);
+        if (before) {
+          this.messages.update(msgs => [...fetchedMessages, ...msgs]);
+        } else {
+          this.messages.set(fetchedMessages);
+          this.markRead(roomId);
+        }
       })
     );
+  }
+
+  loadOlderMessages(roomId: string) {
+    if (this.loadingOlder() || !this.hasMoreMessages()) return;
+    const currentMsgs = this.messages();
+    if (currentMsgs.length === 0) return;
+
+    const oldestTimestamp = currentMsgs[0].createdAt;
+    if (!oldestTimestamp) return;
+
+    this.loadingOlder.set(true);
+    this.getMessages(roomId, oldestTimestamp).subscribe({
+      next: () => this.loadingOlder.set(false),
+      error: () => this.loadingOlder.set(false)
+    });
   }
 
   sendMessage(roomId: string, text: string) {
@@ -251,12 +307,6 @@ export class ChatService {
       newMap.delete(roomId);
       return newMap;
     });
-  }
-
-  clearChat(roomId: string) {
-    return this.http.delete(`${this.apiUrl}/rooms/${roomId}/messages`).pipe(
-      tap(() => this.messages.set([]))
-    );
   }
 
   deleteChat(roomId: string) {

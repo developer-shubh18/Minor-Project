@@ -9,6 +9,11 @@ const { moderateMessage, getViolationMessage } = require('../services/contentMod
 // In-memory active sockets map: userId -> Set of socketIds (supports multi-device/multi-tab)
 const activeSockets = new Map();
 
+// Per-socket message rate limiter tracker: socketId -> Array of timestamps
+const socketMessageTimestamps = new Map();
+const MESSAGE_RATE_LIMIT_WINDOW_MS = 2000;
+const MAX_MESSAGES_PER_WINDOW = 10;
+
 exports.handleSocketEvents = (io, socket) => {
   const userId = socket.user.id.toString();
 
@@ -125,6 +130,23 @@ exports.handleSocketEvents = (io, socket) => {
     try {
       if (!roomId || !text || !text.trim() || !mongoose.Types.ObjectId.isValid(roomId)) return;
 
+      if (text.length > 5000) {
+        socket.emit('error', { message: 'Message exceeds maximum length of 5000 characters' });
+        return;
+      }
+
+      // --- Socket Rate Limiting Check ---
+      const now = Date.now();
+      const userTimestamps = (socketMessageTimestamps.get(socket.id) || []).filter(
+        t => now - t < MESSAGE_RATE_LIMIT_WINDOW_MS
+      );
+      if (userTimestamps.length >= MAX_MESSAGES_PER_WINDOW) {
+        socket.emit('error', { message: 'You are sending messages too quickly. Please slow down.' });
+        return;
+      }
+      userTimestamps.push(now);
+      socketMessageTimestamps.set(socket.id, userTimestamps);
+
       const room = await Room.findById(roomId).populate('participants', 'preferredLanguage');
       if (!room) return;
 
@@ -134,19 +156,26 @@ exports.handleSocketEvents = (io, socket) => {
         return;
       }
 
-      // --- Disciplinary Check: Mute status ---
+      // --- Disciplinary Check: Mute status & Warning Cooldown ---
       const user = await User.findById(userId);
-      if (user && user.mutedUntil && new Date(user.mutedUntil) > new Date()) {
-        const remainingMs = new Date(user.mutedUntil).getTime() - Date.now();
-        const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
-        socket.emit('message-moderated', {
-          action: 'muted',
-          message: `⛔ You are temporarily muted due to multiple policy violations. Time remaining: ${remainingMinutes} minute(s).`,
-          remainingMinutes,
-          warningCount: user.warningCount || 3,
-          maxWarnings: 3
-        });
-        return;
+      if (user && user.mutedUntil) {
+        if (new Date(user.mutedUntil) > new Date()) {
+          const remainingMs = new Date(user.mutedUntil).getTime() - Date.now();
+          const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+          socket.emit('message-moderated', {
+            action: 'muted',
+            message: `⛔ You are temporarily muted due to multiple policy violations. Time remaining: ${remainingMinutes} minute(s).`,
+            remainingMinutes,
+            warningCount: user.warningCount || 3,
+            maxWarnings: 3
+          });
+          return;
+        } else {
+          // Mute period has elapsed: reset disciplinary record
+          user.mutedUntil = null;
+          user.warningCount = 0;
+          await user.save();
+        }
       }
 
       // --- In-Process AI Content Moderation ---
@@ -279,6 +308,7 @@ exports.handleSocketEvents = (io, socket) => {
    * disconnect
    */
   socket.on('disconnect', async () => {
+    socketMessageTimestamps.delete(socket.id);
     const userSockets = activeSockets.get(userId);
     if (userSockets) {
       userSockets.delete(socket.id);

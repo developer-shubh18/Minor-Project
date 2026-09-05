@@ -15,6 +15,9 @@ const userSchema = new mongoose.Schema({
   warningCount: { type: Number, default: 0 },
   mutedUntil: { type: Date, default: null },
 
+  // Role-based Access Control
+  isAdmin: { type: Boolean, default: false },
+
   // Soft-deletion flag to protect chat thread integrity
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });

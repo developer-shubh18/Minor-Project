@@ -18,6 +18,7 @@
 const tf = require('@tensorflow/tfjs');
 const path = require('path');
 const fs = require('fs');
+const { translateText } = require('./translationService');
 
 const MODEL_DIR = path.join(__dirname, '..', 'ai-model', 'trained-model');
 const BLOCK_THRESHOLD = 0.65;
@@ -78,14 +79,9 @@ function encodeText(text) {
   return [...encoded, ...new Array(config.maxSeqLength - encoded.length).fill(0)];
 }
 
-// ---- Moderate ----
-async function moderateMessage(text) {
-  if (!model || !config) {
-    return { action: 'clean', label: 'clean', confidence: 0, scores: {} };
-  }
-
-  const start = Date.now();
-  const input = tf.tensor2d([encodeText(text)], [1, config.maxSeqLength], 'int32');
+// Helper to run tensor prediction
+async function predictText(textToPredict) {
+  const input = tf.tensor2d([encodeText(textToPredict)], [1, config.maxSeqLength], 'int32');
   const prediction = model.predict(input);
   const probs = await prediction.data();
   input.dispose();
@@ -104,7 +100,45 @@ async function moderateMessage(text) {
     else if (confidence >= WARN_THRESHOLD) action = 'warned';
   }
 
-  return { action, label, confidence: Math.round(confidence * 100) / 100, scores, processingTimeMs: Date.now() - start };
+  return { action, label, confidence: Math.round(confidence * 100) / 100, scores };
+}
+
+// ---- Moderate ----
+async function moderateMessage(text) {
+  if (!model || !config || !text || !text.trim()) {
+    return { action: 'clean', label: 'clean', confidence: 0, scores: {} };
+  }
+
+  const start = Date.now();
+  let primaryResult = await predictText(text);
+
+  // If text has non-ASCII characters (e.g. Hindi, Arabic, Chinese, emojis, accented Latin),
+  // translate to English pre-moderation to eliminate the language bypass gap.
+  const isNonAscii = /[^\x00-\x7F]/.test(text);
+  if (isNonAscii) {
+    try {
+      const translatedEnglish = await translateText(text, 'en', 'auto');
+      if (translatedEnglish && translatedEnglish.toLowerCase() !== text.toLowerCase()) {
+        const translatedResult = await predictText(translatedEnglish);
+        // If translated result is higher severity or higher confidence, prioritize it
+        const severityOrder = { blocked: 3, warned: 2, clean: 1 };
+        if (
+          severityOrder[translatedResult.action] > severityOrder[primaryResult.action] ||
+          (severityOrder[translatedResult.action] === severityOrder[primaryResult.action] &&
+            translatedResult.confidence > primaryResult.confidence)
+        ) {
+          primaryResult = translatedResult;
+        }
+      }
+    } catch (err) {
+      console.error('[Moderation.preTranslate] Translation error:', err.message);
+    }
+  }
+
+  return {
+    ...primaryResult,
+    processingTimeMs: Date.now() - start
+  };
 }
 
 // ---- Violation Message ----

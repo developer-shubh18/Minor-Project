@@ -315,23 +315,31 @@ Chatting app/
 │   ├── ai-model/
 │   │   ├── train.js                    # TensorFlow.js CNN model trainer (JS runtime)
 │   │   ├── train_python.py             # Optional Python / Keras training alternative
-│   │   ├── training-data/              # Labeled datasets (clean, sexual, hate, threat)
+│   │   ├── training-data/              # Labeled datasets (dataset.json, dataset_augmented.json)
 │   │   └── trained-model/              # model.json + binary weight shards + config.json
 │   ├── controllers/                    # Business logic controllers (Auth, Chat, User, Moderation)
 │   ├── middleware/
-│   │   ├── authMiddleware.js           # JWT verification for REST and Socket handshake
-│   │   └── roomAuthMiddleware.js       # IDOR prevention & room membership authorization
-│   ├── models/                         # Mongoose Schemas (User, Room, Message, ModerationLog)
+│   │   ├── authMiddleware.js           # JWT verification & adminOnly role authorization
+│   │   ├── roomAuthMiddleware.js       # IDOR prevention & room membership authorization
+│   │   ├── validationMiddleware.js     # express-validator schemas & sanitizer chains
+│   │   └── rateLimiter.js              # Multi-tier express-rate-limit protection
+│   ├── models/                         # Mongoose Schemas with compound indexes (User, Room, Message, ModerationLog)
 │   ├── routes/                         # Express Route Definitions
 │   ├── services/
-│   │   ├── contentModerationService.js # TensorFlow.js inference runner & tokenizer
-│   │   └── translationService.js       # Parallel Google GTX translation engine
+│   │   ├── contentModerationService.js # Multilingual pre-moderation + TensorFlow.js inference
+│   │   └── translationService.js       # Parallel Google GTX translation with exponential backoff retry
 │   ├── socket/
-│   │   └── socketHandler.js            # Real-time WebSocket event listeners & emitters
-│   ├── .env                            # Environment variables
-│   ├── server.js                       # HTTP server & Socket.IO initialization
+│   │   └── socketHandler.js            # Real-time WebSocket event listeners, presence & socket throttler
+│   ├── utils/
+│   │   └── logger.js                   # Winston structured logger & HTTP requestLogger middleware
+│   ├── .env.example                    # Clean environment configuration template
+│   ├── server.js                       # HTTP server, Socket.IO & optional Redis adapter setup
 │   └── package.json
 │
+├── ARCHITECTURE.md                     # Comprehensive System Architecture & Topology
+├── WORKFLOWS.md                        # End-to-End Sequence & State Machine Workflows
+├── PROJECT_STATUS.md                   # Completed Capabilities Matrix & Future Scope
+├── GAPS_AND_BLOCKERS.md                # 22-Point Security & Quality Audit Checklist (Resolved)
 ├── docker-compose.yml                  # Production multi-container orchestrator
 └── README.md                           # Master Project Documentation
 ```

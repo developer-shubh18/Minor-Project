@@ -91,18 +91,38 @@ exports.createRoom = async (req, res) => {
 
 /**
  * GET /api/chat/rooms/:roomId/messages
- * Retrieves last 100 messages for a room (guarded by verifyRoomParticipant).
+ * Retrieves paginated messages for a room (guarded by verifyRoomParticipant).
+ * Query params:
+ *  - before: ISO timestamp string for fetching messages prior to this date
+ *  - limit: number of messages to fetch (default: 50, max: 100)
  */
 exports.getMessages = async (req, res) => {
   try {
     const roomId = req.room ? req.room._id : req.params.roomId;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+    const before = req.query.before;
 
-    const messages = await Message.find({ room: roomId })
+    const query = { room: roomId };
+    if (before) {
+      query.createdAt = { $lt: new Date(before) };
+    }
+
+    // Fetch descending from latest (or cursor) to get latest N messages
+    const messages = await Message.find(query)
       .populate('sender', 'username avatar isOnline')
-      .sort('createdAt')
-      .limit(100);
+      .sort({ createdAt: -1 })
+      .limit(limit);
 
-    res.json({ status: 'success', messages });
+    // Chronological order for client chat timeline
+    const chronologicalMessages = messages.reverse();
+    const hasMore = messages.length === limit;
+
+    res.json({
+      status: 'success',
+      messages: chronologicalMessages,
+      hasMore,
+      oldestTimestamp: chronologicalMessages.length > 0 ? chronologicalMessages[0].createdAt : null
+    });
   } catch (err) {
     console.error('[ChatController.getMessages] Error:', err);
     res.status(500).json({ status: 'error', message: err.message });

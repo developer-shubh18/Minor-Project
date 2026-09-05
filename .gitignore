@@ -48,7 +48,6 @@ testem.log
 /typings
 __screenshots__/
 *.tsbuildinfo
-*.json
 # System files
 .DS_Store
 Thumbs.db

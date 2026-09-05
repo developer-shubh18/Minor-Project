@@ -13,5 +13,6 @@ export const routes: Routes = [
   { path: 'signup', component: SignupComponent },
   { path: 'chat', component: ChatLayoutComponent, canActivate: [authGuard] },
   { path: 'profile', component: ProfileComponent, canActivate: [authGuard] },
-  { path: 'settings', component: SettingsComponent, canActivate: [authGuard] }
+  { path: 'settings', component: SettingsComponent, canActivate: [authGuard] },
+  { path: '**', redirectTo: '' }
 ];

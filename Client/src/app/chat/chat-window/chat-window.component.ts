@@ -282,15 +282,6 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     this.isMenuOpen.update(v => !v);
   }
 
-  clearChat() {
-    const room = this.chatService.currentRoom();
-    if (!room) return;
-    if (confirm('Are you sure you want to clear this chat? All messages will be deleted.')) {
-      this.chatService.clearChat(room._id).subscribe();
-      this.isMenuOpen.set(false);
-    }
-  }
-
   deleteChat() {
     const room = this.chatService.currentRoom();
     if (!room) return;
@@ -327,5 +318,23 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     if (!room) return false;
     const userId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
     return room.pinnedBy?.includes(userId) || room.isPinned;
+  }
+
+  loadOlderMessages() {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+    this.shouldScroll = false;
+    const container = this.messagesContainer?.nativeElement;
+    const prevScrollHeight = container ? container.scrollHeight : 0;
+    const prevScrollTop = container ? container.scrollTop : 0;
+
+    this.chatService.loadOlderMessages(room._id);
+
+    setTimeout(() => {
+      if (container) {
+        const newScrollHeight = container.scrollHeight;
+        container.scrollTop = (newScrollHeight - prevScrollHeight) + prevScrollTop;
+      }
+    }, 100);
   }
 }

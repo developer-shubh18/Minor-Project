@@ -1,53 +1,67 @@
 const axios = require('axios');
 
-// Using the free, keyless Google Translate API (client=gtx)
-// This is very stable for testing and provides both translation and detection.
+// Using the Google Translate GTX endpoint with retry & fallback
 const GOOGLE_API_URL = 'https://translate.googleapis.com/translate_a/single';
+
+/**
+ * Retry helper with exponential backoff
+ */
+const retryRequest = async (fn, retries = 2, delayMs = 300) => {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === retries) throw err;
+      await new Promise(resolve => setTimeout(resolve, delayMs * Math.pow(2, attempt)));
+    }
+  }
+};
 
 /**
  * Detect language of text
  */
 exports.detectLanguage = async (text) => {
   try {
-    const response = await axios.get(GOOGLE_API_URL, {
+    const response = await retryRequest(() => axios.get(GOOGLE_API_URL, {
       params: {
         client: 'gtx',
         sl: 'auto',
-        tl: 'en', // Target language doesn't matter much for detection
+        tl: 'en',
         dt: 't',
         q: text
-      }
-    });
+      },
+      timeout: 4000
+    }));
 
     // The detected language is usually at index 2 of the response array
     if (response.data && response.data[2]) {
       const detected = response.data[2];
-      console.log(`[Detection] Detected language: ${detected} for text: "${text.substring(0, 20)}..."`);
       return detected;
     }
     return 'en';
   } catch (err) {
-    console.error('Language detection error:', err.message);
+    console.error('[TranslationService.detectLanguage] Error:', err.message);
     return 'en';
   }
 };
 
 /**
- * Translate text to target language
+ * Translate text to target language with retry & original text fallback
  */
 exports.translateText = async (text, targetLanguage, sourceLanguage = 'auto') => {
+  if (!text || !text.trim()) return text;
   try {
-    const response = await axios.get(GOOGLE_API_URL, {
+    const response = await retryRequest(() => axios.get(GOOGLE_API_URL, {
       params: {
         client: 'gtx',
         sl: sourceLanguage || 'auto',
         tl: targetLanguage,
         dt: 't',
         q: text
-      }
-    });
+      },
+      timeout: 4000
+    }));
 
-    // The translated text is the first element of the first element's nested array
     // Structure: [[[translated, original, ...]]]
     if (response.data && response.data[0] && response.data[0][0]) {
       const translated = response.data[0].map(item => item[0]).join('');
@@ -55,8 +69,8 @@ exports.translateText = async (text, targetLanguage, sourceLanguage = 'auto') =>
     }
     return text;
   } catch (err) {
-    console.error('Translation error:', err.message);
-    return text; // Return original if translation fails
+    console.error(`[TranslationService.translateText] Failed translating to ${targetLanguage}:`, err.message);
+    return text; // Return original text on failure
   }
 };
 

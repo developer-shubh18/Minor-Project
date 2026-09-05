@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
+    "redis": "^6.2.1",
+    "winston": "^3.19.0"
+  }
+}

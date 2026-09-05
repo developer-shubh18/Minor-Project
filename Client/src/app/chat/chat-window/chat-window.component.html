@@ -94,6 +94,19 @@
     </div>
   </div>
 
+  <!-- Connection Status Banner -->
+  @if (chatService.connectionStatus() === 'reconnecting') {
+  <div class="connection-status-banner reconnecting">
+    <span class="pulse-dot"></span>
+    <span>Connecting to real-time chat server...</span>
+  </div>
+  } @else if (chatService.connectionStatus() === 'disconnected') {
+  <div class="connection-status-banner disconnected">
+    <span class="pulse-dot-red"></span>
+    <span>Disconnected. Reconnecting automatically...</span>
+  </div>
+  }
+
   <!-- Content Moderation Alert -->
   @if (chatService.moderationAlert()) {
   <div class="moderation-alert" 
@@ -147,6 +160,23 @@
     <div class="chat-wallpaper"></div>
 
     <div class="messages-wrapper">
+      <!-- Load older messages button -->
+      @if (chatService.hasMoreMessages()) {
+      <div class="load-older-container">
+        <button class="load-older-btn" [disabled]="chatService.loadingOlder()" (click)="loadOlderMessages()">
+          @if (chatService.loadingOlder()) {
+            <span class="loader-spinner"></span>
+            <span>Loading older messages...</span>
+          } @else {
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m18 15-6-6-6 6"/>
+            </svg>
+            <span>Load earlier messages</span>
+          }
+        </button>
+      </div>
+      }
+
       <!-- Date separators & messages -->
       @for (group of groupedMessages(); track group.date) {
       <div class="date-separator">

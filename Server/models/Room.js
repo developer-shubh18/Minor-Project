@@ -9,4 +9,7 @@ const roomSchema = new mongoose.Schema({
   pinnedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });
 
+roomSchema.index({ participants: 1 });
+roomSchema.index({ updatedAt: -1 });
+
 module.exports = mongoose.model('Room', roomSchema);

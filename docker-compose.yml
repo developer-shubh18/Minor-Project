@@ -19,11 +19,11 @@ services:
     ports:
       - "5001:5001"
     environment:
-      - PORT=5001
-      - MONGO_URI=mongodb://mongodb:27017/bilingual-chat
-      - JWT_SECRET=quickchat_super_secret_jwt_key_major_project_2026
-      - JWT_EXPIRES_IN=7d
-      - CLIENT_URL=http://localhost:4200
+      - PORT=${PORT:-5001}
+      - MONGO_URI=${MONGO_URI:-mongodb://mongodb:27017/bilingual-chat}
+      - JWT_SECRET=${JWT_SECRET:-changeme_in_production_jwt_secret}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:4200}
     depends_on:
       - mongodb
     networks:

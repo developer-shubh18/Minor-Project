@@ -38,3 +38,13 @@ exports.verifySocketToken = async (socket, next) => {
     next(new Error('Invalid token'));
   }
 };
+
+exports.adminOnly = (req, res, next) => {
+  if (!req.user || !req.user.isAdmin) {
+    return res.status(403).json({
+      status: 'error',
+      message: 'Access denied: Admin privileges required'
+    });
+  }
+  next();
+};

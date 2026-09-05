@@ -12,6 +12,10 @@ const moderationRoutes = require('./routes/moderationRoutes');
 const { verifySocketToken } = require('./middleware/authMiddleware');
 const { handleSocketEvents } = require('./socket/socketHandler');
 const { loadModel } = require('./services/contentModerationService');
+const { apiLimiter } = require('./middleware/rateLimiter');
+const { logger, requestLogger } = require('./utils/logger');
+const { createClient } = require('redis');
+const { createAdapter } = require('@socket.io/redis-adapter');
 
 const app = express();
 const server = http.createServer(app);
@@ -19,17 +23,35 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: process.env.CLIENT_URL || 'http://localhost:4200',
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true
   }
 });
 
+// Redis Adapter Configuration for Multi-Instance Scaling (Optional)
+if (process.env.REDIS_URL) {
+  const pubClient = createClient({ url: process.env.REDIS_URL });
+  const subClient = pubClient.duplicate();
+
+  Promise.all([pubClient.connect(), subClient.connect()])
+    .then(() => {
+      io.adapter(createAdapter(pubClient, subClient));
+      logger.info('✅ Socket.IO Redis Adapter connected (multi-instance cluster mode)');
+    })
+    .catch(err => {
+      logger.error('❌ Redis Adapter connection failed, falling back to memory adapter:', err);
+    });
+}
+
 // Middleware
+app.use(requestLogger);
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:4200',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use('/api', apiLimiter);
 
 // REST Routes
 app.use('/api/auth', authRoutes);
@@ -39,12 +61,17 @@ app.use('/api/moderation', moderationRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'Server is running' }));
 
+// 404 Wildcard Handler
+app.use('*', (req, res) => {
+  res.status(404).json({ status: 'error', message: 'Route not found' });
+});
+
 // Socket.IO Auth Middleware
 io.use(verifySocketToken);
 
 // Socket.IO Events
 io.on('connection', (socket) => {
-  console.log(`✅ User connected: ${socket.user.username} (${socket.id})`);
+  logger.info(`User connected: ${socket.user.username} (${socket.id})`);
   handleSocketEvents(io, socket);
 });
 
@@ -52,18 +79,18 @@ io.on('connection', (socket) => {
 const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
 mongoose.connect(mongoUri)
   .then(async () => {
-    console.log('✅ MongoDB connected');
+    logger.info('✅ MongoDB connected');
 
     // Load AI moderation model
     await loadModel();
 
     server.listen(process.env.PORT || 5001, () => {
-      console.log(`🚀 Server running on port ${process.env.PORT || 5001}`);
+      logger.info(`🚀 Server running on port ${process.env.PORT || 5001}`);
     });
   })
   .catch(err => {
-    console.error('❌ MongoDB connection error:', err);
+    logger.error('❌ MongoDB connection error:', err);
     process.exit(1);
   });
 
-module.exports = { io };
+module.exports = { io, logger };

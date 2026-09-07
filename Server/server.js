@@ -61,6 +61,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/moderation', moderationRoutes);
 
+app.get('/', (req, res) => res.json({ status: 'OK', message: 'QuickChat API is running' }));
 app.get('/api/health', (req, res) => res.json({ status: 'OK', message: 'Server is running' }));
 
 // 404 Wildcard Handler

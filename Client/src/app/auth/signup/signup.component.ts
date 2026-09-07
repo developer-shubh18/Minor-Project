@@ -37,7 +37,11 @@ export class SignupComponent {
         },
         error: (err) => {
           this.isLoading = false;
-          this.errorMessage = err.error?.message || 'Registration failed. Please try again.';
+          if (err.error?.errors && Array.isArray(err.error.errors) && err.error.errors.length > 0) {
+            this.errorMessage = err.error.errors.map((e: any) => e.message).join('. ');
+          } else {
+            this.errorMessage = err.error?.message || 'Registration failed. Please try again.';
+          }
         }
       });
     }

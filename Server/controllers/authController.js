@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const { logger } = require('../utils/logger');
 
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -28,9 +29,11 @@ exports.signup = async (req, res) => {
 
     const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
+      const msg = existingUser.email === email ? 'Email already in use' : 'Username already taken';
+      logger.warn(`Signup rejected: ${msg} (username: ${username}, email: ${email})`);
       return res.status(400).json({
         status: 'error',
-        message: existingUser.email === email ? 'Email already in use' : 'Username already taken'
+        message: msg
       });
     }
 

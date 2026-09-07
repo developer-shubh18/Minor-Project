@@ -1,4 +1,5 @@
 const { body, param, query, validationResult } = require('express-validator');
+const { logger } = require('../utils/logger');
 
 /**
  * Formats validation errors and returns 400 response if any errors exist.
@@ -6,6 +7,8 @@ const { body, param, query, validationResult } = require('express-validator');
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
+    const errorDetails = errors.array().map(err => `${err.path || err.param}: ${err.msg}`).join(', ');
+    logger.warn(`Validation failed on ${req.method} ${req.originalUrl}: [${errorDetails}]`);
     return res.status(400).json({
       status: 'error',
       message: 'Validation failed',

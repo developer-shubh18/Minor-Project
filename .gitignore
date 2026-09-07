@@ -12,6 +12,8 @@ out-tsc/
 bazel-out/
 
 # Angular
+.angular/
+Client/.angular/
 .angular/cache
 
 # Environment files

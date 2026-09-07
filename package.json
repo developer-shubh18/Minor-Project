@@ -1,4 +1,13 @@
 {
+  "name": "quickchat-workspace",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm --prefix Client run build",
+    "test": "npm --prefix Server test",
+    "start": "npm --prefix Server start",
+    "dev:server": "npm --prefix Server run dev",
+    "dev:client": "npm --prefix Client start"
+  },
   "dependencies": {
     "@socket.io/redis-adapter": "^8.3.0",
     "redis": "^6.2.1",

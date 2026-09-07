@@ -10,6 +10,7 @@ const authLimiter = rateLimit({
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false, xForwardedForHeader: false },
   message: {
     status: 'error',
     message: 'Too many authentication attempts from this IP. Please try again after 15 minutes.'
@@ -26,6 +27,7 @@ const translateLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false, xForwardedForHeader: false },
   message: {
     status: 'error',
     message: 'Too many translation requests. Please slow down.'
@@ -41,6 +43,7 @@ const apiLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false, xForwardedForHeader: false },
   message: {
     status: 'error',
     message: 'Too many requests from this IP. Please slow down.'

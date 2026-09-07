@@ -2,7 +2,7 @@
   @if (chatService.currentRoom()) {
   <!-- Header -->
   <div class="chat-header">
-    <div class="header-left">
+    <div class="header-left" (click)="chatService.currentRoom()?.isGroup ? openGroupModal() : null" [style.cursor]="chatService.currentRoom()?.isGroup ? 'pointer' : 'default'">
       <div class="header-avatar" [class.group-avatar]="chatService.currentRoom()?.isGroup">
         @if (chatService.currentRoom()?.isGroup) {
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -20,7 +20,12 @@
         }
       </div>
       <div class="header-info">
-        <h3>{{ getRoomDisplayName() }}</h3>
+        <h3>
+          {{ getRoomDisplayName() }}
+          @if (chatService.currentRoom()?.isGroup) {
+            <span class="group-badge-pill">Group</span>
+          }
+        </h3>
         <span class="header-status" [class.typing]="chatService.typingUsers().length > 0"
           [class.online]="isPartnerOnline()">
           {{ getStatusText() }}
@@ -33,7 +38,7 @@
       <input 
         [(ngModel)]="searchQuery" 
         (ngModelChange)="searchQuery.set($event)"
-        placeholder="Search message..." 
+        placeholder="Search messages & files..." 
         autoFocus
       >
       <button class="clear-search" (click)="toggleSearch()">
@@ -85,6 +90,14 @@
 
         @if (isMenuOpen()) {
         <div class="dropdown-menu">
+          @if (chatService.currentRoom()?.isGroup) {
+          <button class="menu-item" (click)="openGroupModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+            </svg>
+            Group Details & Members
+          </button>
+          }
           <button class="menu-item" (click)="togglePin()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 10.5h-5.5L12 3 8.5 10.5H3l4.5 4.5L6 21l6-4.5 6 4.5-1.5-6L21 10.5z"/>
@@ -114,6 +127,14 @@
   <div class="connection-status-banner disconnected">
     <span class="pulse-dot-red"></span>
     <span>Disconnected. Reconnecting automatically...</span>
+  </div>
+  }
+
+  <!-- Uploading Banner -->
+  @if (isUploading()) {
+  <div class="upload-status-banner">
+    <span class="loader-spinner"></span>
+    <span>{{ uploadProgressText() }}</span>
   </div>
   }
 
@@ -165,7 +186,7 @@
   }
 
   <!-- Messages Area -->
-  <div class="messages-area" #messagesContainer (click)="isMenuOpen.set(false)">
+  <div class="messages-area" #messagesContainer (click)="isMenuOpen.set(false); activeReactionMenuMsgId.set(null)">
     <!-- Chat wallpaper overlay -->
     <div class="chat-wallpaper"></div>
 
@@ -197,17 +218,40 @@
         [class.first-in-group]="msg._isFirstInGroup"
         [class.last-in-group]="msg._isLastInGroup"
         [class.moderated-warned]="msg.moderation?.status === 'warned'">
+        
         @if (!isOwnMessage(msg) && chatService.currentRoom()?.isGroup && msg._isFirstInGroup) {
-        <div class="msg-sender">{{ msg.sender?.username || 'Deleted User' }}</div>
+        <div class="msg-sender">{{ msg.sender?.username || 'Member' }}</div>
         }
+
         <div class="msg-bubble-wrapper">
-          @if (isOwnMessage(msg)) {
-          <button class="msg-delete-btn" (click)="deleteSingleMessage(msg); $event.stopPropagation()" title="Delete message">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
-            </svg>
-          </button>
+          <!-- Message action trigger (Reaction & Delete) -->
+          <div class="msg-action-triggers">
+            <button class="msg-action-btn" (click)="toggleReactionMenu(msg._id, $event)" title="Add reaction">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </button>
+
+            @if (isOwnMessage(msg)) {
+            <button class="msg-delete-btn" (click)="deleteSingleMessage(msg); $event.stopPropagation()" title="Delete message">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/>
+              </svg>
+            </button>
+            }
+          </div>
+
+          <!-- Floating Reaction Emoji Popover -->
+          @if (activeReactionMenuMsgId() === msg._id) {
+          <div class="reaction-popover" (click)="$event.stopPropagation()">
+            @for (emoji of availableReactions; track emoji) {
+              <button class="reaction-emoji-btn" (click)="reactToMessage(msg, emoji, $event)">
+                {{ emoji }}
+              </button>
+            }
+          </div>
           }
+
           <div class="msg-bubble">
             <!-- Tail for last message in group -->
             @if (msg._isLastInGroup) {
@@ -225,7 +269,64 @@
             </div>
             }
 
-            <p class="msg-text">{{ getMessageText(msg) }}</p>
+            <!-- MEDIA ATTACHMENTS RENDERING -->
+            @if (msg.media) {
+              <!-- Image Attachment -->
+              @if (msg.media.type === 'image') {
+                <div class="media-image-container" (click)="openLightbox(msg.media.url, msg.media.name)">
+                  <img [src]="msg.media.url" [alt]="msg.media.name" class="msg-image-thumb" loading="lazy" />
+                  <div class="image-zoom-overlay">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+                    </svg>
+                  </div>
+                </div>
+              }
+
+              <!-- Audio Voice Note -->
+              @else if (msg.media.type === 'audio') {
+                <div class="media-voice-container">
+                  <div class="voice-header">
+                    <div class="voice-wave-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      </svg>
+                    </div>
+                    <span class="voice-label">Voice Note</span>
+                  </div>
+                  <audio [src]="msg.media.url" controls class="voice-player" preload="metadata"></audio>
+                </div>
+              }
+
+              <!-- Document / PDF / File -->
+              @else {
+                <a [href]="msg.media.url" target="_blank" [download]="msg.media.name" class="media-doc-card">
+                  <div class="doc-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                  </div>
+                  <div class="doc-details">
+                    <span class="doc-name">{{ msg.media.name }}</span>
+                    <span class="doc-size">{{ formatFileSize(msg.media.size) }}</span>
+                  </div>
+                  <div class="doc-action">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                  </div>
+                </a>
+              }
+            }
+
+            <!-- Text Content -->
+            @if (msg.originalText) {
+              <p class="msg-text">{{ getMessageText(msg) }}</p>
+            }
 
             <!-- Language Badge (only if translated) -->
             @if (isShowingTranslated(msg) && getLanguageLabel(msg)) {
@@ -256,6 +357,23 @@
               }
             </div>
           </div>
+
+          <!-- Reactions Row -->
+          @if (msg.reactions && msg.reactions.length > 0) {
+          <div class="reactions-row">
+            @for (reaction of getGroupedReactions(msg.reactions); track reaction.emoji) {
+              <button 
+                class="reaction-badge" 
+                [class.active]="reaction.hasReacted" 
+                (click)="reactToMessage(msg, reaction.emoji, $event)"
+                [title]="reaction.users.join(', ')"
+              >
+                <span>{{ reaction.emoji }}</span>
+                <span class="reaction-count">{{ reaction.count }}</span>
+              </button>
+            }
+          </div>
+          }
         </div>
       </div>
       }
@@ -270,9 +388,9 @@
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
           </svg>
         </div>
-        <p class="empty-chat-text">Messages are secured and AI-moderated in real time.<br>Respectful conversations are actively protected.</p>
+        <p class="empty-chat-text">Messages, photos, documents & voice notes are encrypted in transit.<br>Content is actively AI-moderated.</p>
         <div class="empty-start-msg">
-          <span>Send a message to start the conversation ✨</span>
+          <span>Send a message or attach a file to start the conversation ✨</span>
         </div>
       </div>
       }
@@ -292,43 +410,212 @@
 
   <!-- Input Area -->
   <div class="message-input-area">
-    <button class="input-icon-btn" title="Emoji (Text mode)" disabled style="opacity: 0.45; cursor: not-allowed;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-        <line x1="9" x2="9.01" y1="9" y2="9" />
-        <line x1="15" x2="15.01" y1="9" y2="9" />
-      </svg>
-    </button>
-    <button class="input-icon-btn" title="Attachments restricted for text-only AI moderation" disabled style="opacity: 0.45; cursor: not-allowed;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path
-          d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-      </svg>
-    </button>
-    <div class="message-input-wrapper">
-      <input [(ngModel)]="messageText" (keyup.enter)="sendMessage()" (input)="onTyping()"
-        placeholder="Type a message" autocomplete="off" id="message-input-field">
-    </div>
-    @if (messageText.trim()) {
-    <button class="send-btn" (click)="sendMessage()" id="send-message-btn">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-      </svg>
-    </button>
+    <!-- Hidden File Input -->
+    <input 
+      #fileInput 
+      type="file" 
+      (change)="onFileSelected($event)" 
+      accept="image/*,audio/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt,.csv" 
+      style="display: none;" 
+    />
+
+    @if (isRecording()) {
+      <!-- Voice Recording In-Progress Banner -->
+      <div class="recording-bar">
+        <div class="recording-indicator">
+          <span class="recording-pulse"></span>
+          <span class="recording-time">{{ formatRecordingTime(recordingDuration()) }}</span>
+        </div>
+        <span class="recording-label">Recording audio note...</span>
+        <div class="recording-actions">
+          <button class="recording-btn cancel" (click)="cancelRecording()" title="Cancel recording">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
+          <button class="recording-btn send" (click)="stopRecordingAndSend()" title="Send voice note">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+            </svg>
+          </button>
+        </div>
+      </div>
     } @else {
-    <button class="input-icon-btn mic-btn" title="Voice messages restricted for text-only AI moderation" disabled style="opacity: 0.45; cursor: not-allowed;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
-        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-        <line x1="12" x2="12" y1="19" y2="22" />
-      </svg>
-    </button>
+      <!-- Attachment Clip Button -->
+      <button class="input-icon-btn" (click)="triggerFileInput()" title="Attach photo, document or file">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+        </svg>
+      </button>
+
+      <!-- Message Text Input -->
+      <div class="message-input-wrapper">
+        <input [(ngModel)]="messageText" (keyup.enter)="sendMessage()" (input)="onTyping()"
+          placeholder="Type a message or attach media..." autocomplete="off" id="message-input-field">
+      </div>
+
+      <!-- Send or Mic Button -->
+      @if (messageText.trim()) {
+      <button class="send-btn" (click)="sendMessage()" id="send-message-btn" title="Send message">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+        </svg>
+      </button>
+      } @else {
+      <button class="input-icon-btn mic-btn" (click)="startRecording()" title="Hold/Click to record voice note">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" x2="12" y1="19" y2="22" />
+        </svg>
+      </button>
+      }
     }
   </div>
+
+  <!-- Image Lightbox Modal -->
+  @if (lightboxUrl()) {
+  <div class="lightbox-overlay" (click)="closeLightbox()">
+    <div class="lightbox-content" (click)="$event.stopPropagation()">
+      <div class="lightbox-header">
+        <span class="lightbox-title">{{ lightboxName() }}</span>
+        <div class="lightbox-actions">
+          <a [href]="lightboxUrl()" target="_blank" [download]="lightboxName()" class="lightbox-btn" title="Download">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </a>
+          <button class="lightbox-btn" (click)="closeLightbox()" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="lightbox-img-wrapper">
+        <img [src]="lightboxUrl()" [alt]="lightboxName()" class="lightbox-full-img" />
+      </div>
+    </div>
+  </div>
+  }
+
+  <!-- Group Details & Admin Management Modal -->
+  @if (isGroupModalOpen()) {
+  <div class="modal-backdrop" (click)="closeGroupModal()">
+    <div class="group-admin-modal" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3>Group Information & Members</h3>
+        <button class="close-modal-btn" (click)="closeGroupModal()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Group Details Edit (Admin only) -->
+        <div class="group-info-section">
+          <div class="form-group">
+            <label>Group Name</label>
+            <input 
+              [(ngModel)]="groupEditName" 
+              [disabled]="!isCurrentUserAdmin()" 
+              class="modal-input" 
+              placeholder="Group name"
+            />
+          </div>
+
+          <div class="form-group">
+            <label>Description</label>
+            <textarea 
+              [(ngModel)]="groupEditDesc" 
+              [disabled]="!isCurrentUserAdmin()" 
+              class="modal-textarea" 
+              rows="2" 
+              placeholder="Group topic or description..."
+            ></textarea>
+          </div>
+
+          @if (isCurrentUserAdmin()) {
+          <div class="save-group-btn-container">
+            <button class="btn-save-group" [disabled]="groupSaving()" (click)="saveGroupInfo()">
+              {{ groupSaving() ? 'Saving...' : 'Save Group Info' }}
+            </button>
+          </div>
+          }
+        </div>
+
+        <!-- Participants List & Admin Permissions -->
+        <div class="group-members-section">
+          <h4>Members ({{ chatService.currentRoom()?.participants?.length || 0 }})</h4>
+          <div class="members-list">
+            @for (member of chatService.currentRoom()?.participants; track member._id || member.id) {
+            <div class="member-item">
+              <div class="member-left">
+                <div class="member-avatar">
+                  <span>{{ member.username?.charAt(0)?.toUpperCase() }}</span>
+                  @if (chatService.isUserOnline(member._id || member.id)) {
+                    <div class="member-online-dot"></div>
+                  }
+                </div>
+                <div class="member-info">
+                  <span class="member-name">{{ member.username }}</span>
+                  <div class="member-roles">
+                    @if (isMemberOwner(member)) {
+                      <span class="badge-role owner">Owner</span>
+                    } @else if (isMemberAdmin(member)) {
+                      <span class="badge-role admin">Admin</span>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <!-- Admin action buttons -->
+              @if (isCurrentUserAdmin() && !isMemberOwner(member) && (member._id || member.id) !== (authService.currentUser()?.id || authService.currentUser()?._id)) {
+              <div class="member-actions">
+                <button 
+                  class="action-btn-admin" 
+                  [class.demote]="isMemberAdmin(member)" 
+                  (click)="toggleAdminRole(member)"
+                  [title]="isMemberAdmin(member) ? 'Remove Admin' : 'Make Admin'"
+                >
+                  {{ isMemberAdmin(member) ? 'Demote' : 'Make Admin' }}
+                </button>
+                <button 
+                  class="action-btn-kick" 
+                  (click)="kickMember(member)" 
+                  title="Remove from group"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6 6 18M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+              }
+            </div>
+            }
+          </div>
+        </div>
+
+        <!-- Leave Group Button -->
+        <div class="group-danger-zone">
+          <button class="btn-leave-group" (click)="leaveCurrentGroup()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Leave Group
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  }
 
   } @else {
   <div class="no-chat">
@@ -341,7 +628,7 @@
       </div>
     </div>
     <h2>QuickChat Web</h2>
-    <p>Send and receive messages in any language.<br>Now with real-time translations & Edge AI moderation.</p>
+    <p>Send and receive messages, media, and voice notes in any language.<br>Now with real-time translations, emoji reactions, and AI safety moderation.</p>
     <div class="no-chat-footer">
       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

@@ -12,6 +12,8 @@ exports.getRooms = async (req, res) => {
   try {
     const rooms = await Room.find({ participants: req.user.id })
       .populate('participants', 'username avatar isOnline lastSeen')
+      .populate('admins', 'username avatar')
+      .populate('createdBy', 'username avatar')
       .populate({
         path: 'lastMessage',
         populate: { path: 'sender', select: 'username avatar' }
@@ -41,7 +43,7 @@ exports.getRooms = async (req, res) => {
  */
 exports.createRoom = async (req, res) => {
   try {
-    const { participantIds, name, isGroup } = req.body;
+    const { participantIds, name, isGroup, avatar, description } = req.body;
 
     if (!participantIds || !Array.isArray(participantIds) || participantIds.length === 0) {
       return res.status(400).json({
@@ -67,7 +69,9 @@ exports.createRoom = async (req, res) => {
       const existing = await Room.findOne({
         isGroup: false,
         participants: { $all: uniqueIds, $size: 2 }
-      }).populate('participants', 'username avatar isOnline lastSeen');
+      }).populate('participants', 'username avatar isOnline lastSeen')
+        .populate('admins', 'username avatar')
+        .populate('createdBy', 'username avatar');
 
       if (existing) {
         return res.json({ status: 'success', room: existing });
@@ -77,11 +81,16 @@ exports.createRoom = async (req, res) => {
     const room = await Room.create({
       name: isGroupChat ? (name?.trim() || 'New Group') : 'Direct Message',
       participants: uniqueIds,
+      admins: isGroupChat ? [req.user.id] : [],
+      avatar: avatar || '',
+      description: description || '',
       isGroup: isGroupChat,
       createdBy: req.user.id
     });
 
     await room.populate('participants', 'username avatar isOnline lastSeen');
+    await room.populate('admins', 'username avatar');
+    await room.populate('createdBy', 'username avatar');
 
     // Broadcast real-time room creation event to all members' personal notification channels
     const io = req.app.get('io');
@@ -327,6 +336,224 @@ exports.translateMessage = async (req, res) => {
     });
   } catch (err) {
     console.error('[ChatController.translateMessage] Error:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * POST /api/chat/upload
+ * Handles file, photo, PDF, and voice audio uploads.
+ */
+exports.uploadMedia = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ status: 'error', message: 'No file uploaded' });
+    }
+
+    const mime = req.file.mimetype;
+    let type = 'file';
+    if (mime.startsWith('image/')) type = 'image';
+    else if (mime.startsWith('audio/')) type = 'audio';
+    else if (mime.startsWith('video/')) type = 'video';
+
+    const fileUrl = `/uploads/${req.file.filename}`;
+
+    res.status(201).json({
+      status: 'success',
+      media: {
+        url: fileUrl,
+        type,
+        name: req.file.originalname,
+        size: req.file.size,
+        mimeType: req.file.mimetype
+      }
+    });
+  } catch (err) {
+    console.error('[ChatController.uploadMedia] Error:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * PATCH /api/chat/groups/:roomId
+ * Updates group title, description, or avatar (Admin only).
+ */
+exports.updateGroup = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { name, description, avatar } = req.body;
+
+    const room = await Room.findById(roomId);
+    if (!room || !room.isGroup) {
+      return res.status(404).json({ status: 'error', message: 'Group not found' });
+    }
+
+    const userId = req.user.id.toString();
+    const isAdmin = room.admins?.some(a => a.toString() === userId) || room.createdBy?.toString() === userId;
+    if (!isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Only group admins can update group details' });
+    }
+
+    if (name) room.name = name.trim();
+    if (description !== undefined) room.description = description.trim();
+    if (avatar !== undefined) room.avatar = avatar;
+
+    await room.save();
+    await room.populate('participants', 'username avatar isOnline lastSeen');
+    await room.populate('admins', 'username avatar');
+    await room.populate('createdBy', 'username avatar');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(roomId).emit('group-updated', { roomId, room });
+    }
+
+    res.json({ status: 'success', room });
+  } catch (err) {
+    console.error('[ChatController.updateGroup] Error:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * POST /api/chat/groups/:roomId/members/remove
+ * Removes / kicks a member from a group (Admin only).
+ */
+exports.removeMember = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { memberId } = req.body;
+
+    if (!memberId) {
+      return res.status(400).json({ status: 'error', message: 'memberId is required' });
+    }
+
+    const room = await Room.findById(roomId);
+    if (!room || !room.isGroup) {
+      return res.status(404).json({ status: 'error', message: 'Group not found' });
+    }
+
+    const userId = req.user.id.toString();
+    const isAdmin = room.admins?.some(a => a.toString() === userId) || room.createdBy?.toString() === userId;
+    if (!isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Only group admins can remove members' });
+    }
+
+    if (room.createdBy?.toString() === memberId.toString()) {
+      return res.status(400).json({ status: 'error', message: 'Group owner cannot be removed' });
+    }
+
+    room.participants = room.participants.filter(p => p.toString() !== memberId.toString());
+    room.admins = room.admins.filter(a => a.toString() !== memberId.toString());
+    await room.save();
+
+    await room.populate('participants', 'username avatar isOnline lastSeen');
+    await room.populate('admins', 'username avatar');
+    await room.populate('createdBy', 'username avatar');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(roomId).emit('group-updated', { roomId, room });
+      io.to(`user:${memberId}`).emit('member-kicked', { roomId, groupName: room.name });
+    }
+
+    res.json({ status: 'success', message: 'Member removed successfully', room });
+  } catch (err) {
+    console.error('[ChatController.removeMember] Error:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * PATCH /api/chat/groups/:roomId/admins
+ * Promotes or demotes a member to/from co-admin (Admin only).
+ */
+exports.toggleAdmin = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { memberId, makeAdmin } = req.body;
+
+    const room = await Room.findById(roomId);
+    if (!room || !room.isGroup) {
+      return res.status(404).json({ status: 'error', message: 'Group not found' });
+    }
+
+    const userId = req.user.id.toString();
+    const isAdmin = room.admins?.some(a => a.toString() === userId) || room.createdBy?.toString() === userId;
+    if (!isAdmin) {
+      return res.status(403).json({ status: 'error', message: 'Only group admins can modify admin roles' });
+    }
+
+    if (!room.participants.some(p => p.toString() === memberId.toString())) {
+      return res.status(400).json({ status: 'error', message: 'User is not a member of this group' });
+    }
+
+    if (makeAdmin) {
+      if (!room.admins.some(a => a.toString() === memberId.toString())) {
+        room.admins.push(memberId);
+      }
+    } else {
+      if (room.createdBy?.toString() === memberId.toString()) {
+        return res.status(400).json({ status: 'error', message: 'Cannot demote the group owner' });
+      }
+      room.admins = room.admins.filter(a => a.toString() !== memberId.toString());
+    }
+
+    await room.save();
+    await room.populate('participants', 'username avatar isOnline lastSeen');
+    await room.populate('admins', 'username avatar');
+    await room.populate('createdBy', 'username avatar');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(roomId).emit('group-updated', { roomId, room });
+    }
+
+    res.json({ status: 'success', room });
+  } catch (err) {
+    console.error('[ChatController.toggleAdmin] Error:', err);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+/**
+ * POST /api/chat/groups/:roomId/leave
+ * Allows a participant to voluntarily leave a group.
+ */
+exports.leaveGroup = async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const userId = req.user.id.toString();
+
+    const room = await Room.findById(roomId);
+    if (!room || !room.isGroup) {
+      return res.status(404).json({ status: 'error', message: 'Group not found' });
+    }
+
+    room.participants = room.participants.filter(p => p.toString() !== userId);
+    room.admins = room.admins.filter(a => a.toString() !== userId);
+
+    // If owner leaves and there are remaining participants, reassign owner to another admin or member
+    if (room.createdBy?.toString() === userId && room.participants.length > 0) {
+      room.createdBy = room.admins[0] || room.participants[0];
+      if (!room.admins.includes(room.createdBy)) {
+        room.admins.push(room.createdBy);
+      }
+    }
+
+    await room.save();
+    await room.populate('participants', 'username avatar isOnline lastSeen');
+    await room.populate('admins', 'username avatar');
+    await room.populate('createdBy', 'username avatar');
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(roomId).emit('group-updated', { roomId, room });
+    }
+
+    res.json({ status: 'success', message: 'Left group successfully' });
+  } catch (err) {
+    console.error('[ChatController.leaveGroup] Error:', err);
     res.status(500).json({ status: 'error', message: err.message });
   }
 };

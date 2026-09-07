@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -71,6 +72,7 @@ app.set('io', io);
 app.use(requestLogger);
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.json({ limit: '1mb' }));
 app.use('/api', apiLimiter);
 

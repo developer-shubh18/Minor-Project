@@ -1,4 +1,4 @@
-import { Component, inject, ElementRef, ViewChild, AfterViewChecked, computed, OnInit, signal } from '@angular/core';
+import { Component, inject, ElementRef, ViewChild, AfterViewChecked, computed, OnInit, signal, OnDestroy } from '@angular/core';
 import { ChatService } from '../../services/chat.service';
 import { AuthService } from '../../services/auth.service';
 import { TranslationService } from '../../services/translation.service';
@@ -18,7 +18,7 @@ interface MessageGroup {
   templateUrl: './chat-window.component.html',
   styleUrl: './chat-window.component.css'
 })
-export class ChatWindowComponent implements AfterViewChecked, OnInit {
+export class ChatWindowComponent implements AfterViewChecked, OnInit, OnDestroy {
   chatService = inject(ChatService);
   authService = inject(AuthService);
   translationService = inject(TranslationService);
@@ -32,7 +32,33 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
   // Menu functionality
   isMenuOpen = signal(false);
 
+  // Media & Attachment uploading state
+  isUploading = signal(false);
+  uploadProgressText = signal('');
+
+  // Voice Note Recording state
+  isRecording = signal(false);
+  recordingDuration = signal(0);
+  private mediaRecorder: MediaRecorder | null = null;
+  private audioChunks: Blob[] = [];
+  private recordingTimer: any = null;
+
+  // Reactions
+  availableReactions = ['❤️', '👍', '😂', '🎉', '😮', '😢'];
+  activeReactionMenuMsgId = signal<string | null>(null);
+
+  // Group Details Modal
+  isGroupModalOpen = signal(false);
+  groupEditName = signal('');
+  groupEditDesc = signal('');
+  groupSaving = signal(false);
+
+  // Lightbox
+  lightboxUrl = signal<string | null>(null);
+  lightboxName = signal<string>('');
+
   @ViewChild('messagesContainer') messagesContainer!: ElementRef;
+  @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
   private shouldScroll = true;
 
   /** Groups messages by date and marks first/last in consecutive sender groups */
@@ -43,7 +69,8 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     // Filter by search query if active
     if (query) {
       messages = messages.filter(m => 
-        m.originalText.toLowerCase().includes(query) || 
+        (m.originalText && m.originalText.toLowerCase().includes(query)) || 
+        (m.media?.name && m.media.name.toLowerCase().includes(query)) ||
         m.translations?.some((t: any) => t.text.toLowerCase().includes(query))
       );
     }
@@ -76,9 +103,9 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
         const prev = i > 0 ? group.messages[i - 1] : null;
         const next = i < group.messages.length - 1 ? group.messages[i + 1] : null;
 
-        const senderId = msg.sender?._id || msg.sender;
-        const prevSenderId = prev ? (prev.sender?._id || prev.sender) : null;
-        const nextSenderId = next ? (next.sender?._id || next.sender) : null;
+        const senderId = msg.sender?._id || msg.sender?.id || msg.sender;
+        const prevSenderId = prev ? (prev.sender?._id || prev.sender?.id || prev.sender) : null;
+        const nextSenderId = next ? (next.sender?._id || next.sender?.id || next.sender) : null;
 
         msg._isFirstInGroup = senderId !== prevSenderId;
         msg._isLastInGroup = senderId !== nextSenderId;
@@ -89,8 +116,12 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
   });
 
   ngOnInit() {
-    // Load supported languages on init
     this.translationService.loadLanguages().subscribe();
+    this.chatService.requestNotificationPermission();
+  }
+
+  ngOnDestroy() {
+    this.cancelRecording();
   }
 
   private formatDateLabel(date: Date): string {
@@ -146,32 +177,320 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     }, 2000);
   }
 
-  /** Get message text — checks if showing translated or original */
+  // --- Media & File Uploading ---
+
+  triggerFileInput() {
+    this.fileInput?.nativeElement.click();
+  }
+
+  onFileSelected(event: any) {
+    const file: File = event.target.files?.[0];
+    if (!file) return;
+
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      alert('File exceeds maximum allowed size of 15MB');
+      event.target.value = '';
+      return;
+    }
+
+    this.isUploading.set(true);
+    this.uploadProgressText.set(`Uploading ${file.name}...`);
+
+    this.chatService.uploadMedia(file).subscribe({
+      next: (res) => {
+        this.isUploading.set(false);
+        this.uploadProgressText.set('');
+        event.target.value = '';
+        if (res.media) {
+          this.chatService.sendMessage(room._id, this.messageText.trim(), res.media);
+          this.messageText = '';
+          this.shouldScroll = true;
+        }
+      },
+      error: (err) => {
+        this.isUploading.set(false);
+        this.uploadProgressText.set('');
+        event.target.value = '';
+        alert(err?.error?.message || 'File upload failed');
+      }
+    });
+  }
+
+  // --- Voice Note Recording ---
+
+  async startRecording() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('Voice recording is not supported in this browser');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.audioChunks = [];
+      this.mediaRecorder = new MediaRecorder(stream);
+
+      this.mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          this.audioChunks.push(event.data);
+        }
+      };
+
+      this.mediaRecorder.onstop = () => {
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      this.mediaRecorder.start();
+      this.isRecording.set(true);
+      this.recordingDuration.set(0);
+
+      this.recordingTimer = setInterval(() => {
+        this.recordingDuration.update(d => d + 1);
+      }, 1000);
+    } catch (err) {
+      console.error('Microphone access denied:', err);
+      alert('Microphone access denied. Please allow microphone permissions to record voice notes.');
+    }
+  }
+
+  stopRecordingAndSend() {
+    if (!this.mediaRecorder || !this.isRecording()) return;
+
+    clearInterval(this.recordingTimer);
+    const room = this.chatService.currentRoom();
+
+    this.mediaRecorder.onstop = () => {
+      const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+      const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: 'audio/webm' });
+
+      this.isRecording.set(false);
+      this.recordingDuration.set(0);
+
+      if (room) {
+        this.isUploading.set(true);
+        this.uploadProgressText.set('Sending voice note...');
+        this.chatService.uploadMedia(audioFile).subscribe({
+          next: (res) => {
+            this.isUploading.set(false);
+            this.uploadProgressText.set('');
+            if (res.media) {
+              this.chatService.sendMessage(room._id, '', res.media);
+              this.shouldScroll = true;
+            }
+          },
+          error: (err) => {
+            this.isUploading.set(false);
+            this.uploadProgressText.set('');
+            alert(err?.error?.message || 'Failed to send voice note');
+          }
+        });
+      }
+    };
+
+    this.mediaRecorder.stop();
+  }
+
+  cancelRecording() {
+    if (this.recordingTimer) clearInterval(this.recordingTimer);
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      this.mediaRecorder.stop();
+    }
+    this.isRecording.set(false);
+    this.recordingDuration.set(0);
+    this.audioChunks = [];
+  }
+
+  formatRecordingTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  }
+
+  // --- Emoji Reactions ---
+
+  toggleReactionMenu(msgId: string, event: MouseEvent) {
+    event.stopPropagation();
+    if (this.activeReactionMenuMsgId() === msgId) {
+      this.activeReactionMenuMsgId.set(null);
+    } else {
+      this.activeReactionMenuMsgId.set(msgId);
+    }
+  }
+
+  reactToMessage(msg: any, emoji: string, event?: MouseEvent) {
+    if (event) event.stopPropagation();
+    const room = this.chatService.currentRoom();
+    if (!room || !msg) return;
+
+    this.chatService.toggleReaction(msg._id || msg.id, room._id, emoji);
+    this.activeReactionMenuMsgId.set(null);
+  }
+
+  getGroupedReactions(reactions: any[]) {
+    if (!reactions || reactions.length === 0) return [];
+
+    const currentUserId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
+    const map = new Map<string, { emoji: string, count: number, hasReacted: boolean, users: string[] }>();
+
+    for (const r of reactions) {
+      const emoji = r.emoji;
+      const rUserId = (r.user?._id || r.user?.id || r.user)?.toString();
+      const username = r.user?.username || 'Someone';
+
+      if (!map.has(emoji)) {
+        map.set(emoji, { emoji, count: 0, hasReacted: false, users: [] });
+      }
+
+      const entry = map.get(emoji)!;
+      entry.count++;
+      entry.users.push(username);
+      if (rUserId === currentUserId?.toString()) {
+        entry.hasReacted = true;
+      }
+    }
+
+    return Array.from(map.values());
+  }
+
+  // --- Lightbox ---
+
+  openLightbox(url: string, name = 'Image') {
+    this.lightboxUrl.set(url);
+    this.lightboxName.set(name);
+  }
+
+  closeLightbox() {
+    this.lightboxUrl.set(null);
+  }
+
+  // --- Group Details & Admin Management ---
+
+  openGroupModal() {
+    const room = this.chatService.currentRoom();
+    if (!room || !room.isGroup) return;
+    this.groupEditName.set(room.name || '');
+    this.groupEditDesc.set(room.description || '');
+    this.isGroupModalOpen.set(true);
+    this.isMenuOpen.set(false);
+  }
+
+  closeGroupModal() {
+    this.isGroupModalOpen.set(false);
+  }
+
+  isCurrentUserAdmin(): boolean {
+    const room = this.chatService.currentRoom();
+    if (!room || !room.isGroup) return false;
+    const userId = (this.authService.currentUser()?.id || this.authService.currentUser()?._id)?.toString();
+    const isOwner = (room.createdBy?._id || room.createdBy?.id || room.createdBy)?.toString() === userId;
+    const isAdmin = (room.admins || []).some((a: any) => (a._id || a.id || a)?.toString() === userId);
+    return isOwner || isAdmin;
+  }
+
+  isMemberAdmin(member: any): boolean {
+    const room = this.chatService.currentRoom();
+    if (!room) return false;
+    const memberId = (member._id || member.id || member)?.toString();
+    const isOwner = (room.createdBy?._id || room.createdBy?.id || room.createdBy)?.toString() === memberId;
+    const isAdmin = (room.admins || []).some((a: any) => (a._id || a.id || a)?.toString() === memberId);
+    return isOwner || isAdmin;
+  }
+
+  isMemberOwner(member: any): boolean {
+    const room = this.chatService.currentRoom();
+    if (!room) return false;
+    const memberId = (member._id || member.id || member)?.toString();
+    return (room.createdBy?._id || room.createdBy?.id || room.createdBy)?.toString() === memberId;
+  }
+
+  toggleAdminRole(member: any) {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+    const memberId = (member._id || member.id || member)?.toString();
+    const willBeAdmin = !this.isMemberAdmin(member);
+
+    this.chatService.toggleAdmin(room._id, memberId, willBeAdmin).subscribe({
+      error: (err) => alert(err?.error?.message || 'Failed to update admin role')
+    });
+  }
+
+  kickMember(member: any) {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+    const memberId = (member._id || member.id || member)?.toString();
+
+    if (confirm(`Remove ${member.username || 'this user'} from the group?`)) {
+      this.chatService.removeMember(room._id, memberId).subscribe({
+        error: (err) => alert(err?.error?.message || 'Failed to remove member')
+      });
+    }
+  }
+
+  saveGroupInfo() {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+
+    this.groupSaving.set(true);
+    this.chatService.updateGroup(room._id, {
+      name: this.groupEditName().trim(),
+      description: this.groupEditDesc().trim()
+    }).subscribe({
+      next: () => {
+        this.groupSaving.set(false);
+        this.isGroupModalOpen.set(false);
+      },
+      error: (err) => {
+        this.groupSaving.set(false);
+        alert(err?.error?.message || 'Failed to update group details');
+      }
+    });
+  }
+
+  leaveCurrentGroup() {
+    const room = this.chatService.currentRoom();
+    if (!room) return;
+
+    if (confirm(`Leave "${room.name}"? You will no longer receive messages from this group.`)) {
+      this.chatService.leaveGroup(room._id).subscribe({
+        next: () => {
+          this.isGroupModalOpen.set(false);
+        },
+        error: (err) => alert(err?.error?.message || 'Failed to leave group')
+      });
+    }
+  }
+
+  formatFileSize(bytes: number): string {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  // --- Translation Helpers ---
+
   getMessageText(msg: any): string {
     const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
     const msgId = msg._id;
 
-    // Check if global translate-all is on OR local toggle is on
     if (this.translationService.translateAll() || this.translationService.isShowingTranslated(msgId)) {
-      // First check server-side translations array
       const serverTranslation = msg.translations?.find((t: any) => t.language === userLang);
       if (serverTranslation) return serverTranslation.text;
 
-      // Then check client-side cache
       const cached = this.translationService.getCachedTranslation(msgId, userLang);
       if (cached) return cached;
       
-      // If global is on but no translation yet, we could trigger it, 
-      // but for better UX we just return original until it's ready.
-      if (this.translationService.translateAll()) {
+      if (this.translationService.translateAll() && msg.originalText) {
          this.ensureTranslationReady(msg);
       }
     }
 
-    return msg.originalText;
+    return msg.originalText || '';
   }
 
-  /** Background translate if missing when Translate All is active */
   private ensureTranslationReady(msg: any) {
     const msgId = msg._id;
     const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
@@ -190,8 +509,8 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     });
   }
 
-  /** Check if the message language differs from user's preferred language */
   canTranslate(msg: any): boolean {
+    if (!msg.originalText) return false;
     const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
     if (msg.originalLanguage && msg.originalLanguage !== userLang) return true;
     if (msg.translations?.some((t: any) => t.language === userLang)) return true;

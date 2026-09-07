@@ -126,11 +126,16 @@ exports.handleSocketEvents = (io, socket) => {
    * send-message
    * Disciplinary checks -> AI Moderation -> Language Detection -> Parallel Translation -> Delivery
    */
-  socket.on('send-message', async ({ roomId, text }) => {
+  socket.on('send-message', async ({ roomId, text, media }) => {
     try {
-      if (!roomId || !text || !text.trim() || !mongoose.Types.ObjectId.isValid(roomId)) return;
+      const hasText = Boolean(text && text.trim());
+      const hasMedia = Boolean(media && media.url);
 
-      if (text.length > 5000) {
+      if (!roomId || (!hasText && !hasMedia) || !mongoose.Types.ObjectId.isValid(roomId)) return;
+
+      const cleanText = hasText ? text.trim() : '';
+
+      if (cleanText.length > 5000) {
         socket.emit('error', { message: 'Message exceeds maximum length of 5000 characters' });
         return;
       }
@@ -178,60 +183,36 @@ exports.handleSocketEvents = (io, socket) => {
         }
       }
 
-      // --- In-Process AI Content Moderation ---
-      const modResult = await moderateMessage(text);
+      let modResult = { action: 'clean', confidence: 0, label: 'clean' };
       const MAX_WARNINGS = 3;
 
-      console.log(`[Moderation] ${socket.user.username}: "${text.substring(0, 30)}..." -> ${modResult.action} (${modResult.label}, ${(modResult.confidence * 100).toFixed(0)}%)`);
+      if (hasText) {
+        // --- In-Process AI Content Moderation ---
+        modResult = await moderateMessage(cleanText);
 
-      // BLOCKED Content
-      if (modResult.action === 'blocked') {
-        user.warningCount = (user.warningCount || 0) + 1;
-        let action = 'blocked';
-        let alertMsg = getViolationMessage(modResult);
+        console.log(`[Moderation] ${socket.user.username}: "${cleanText.substring(0, 30)}..." -> ${modResult.action} (${modResult.label}, ${(modResult.confidence * 100).toFixed(0)}%)`);
 
-        if (user.warningCount >= MAX_WARNINGS) {
-          user.mutedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute mute
-          action = 'muted';
-          alertMsg = `⛔ Maximum violations reached (${MAX_WARNINGS}/${MAX_WARNINGS}). You have been muted for 15 minutes.`;
-        }
-        await user.save();
+        // BLOCKED Content
+        if (modResult.action === 'blocked') {
+          user.warningCount = (user.warningCount || 0) + 1;
+          let action = 'blocked';
+          let alertMsg = getViolationMessage(modResult);
 
-        await ModerationLog.create({
-          room: roomId, sender: userId, originalText: text,
-          action: action, score: modResult.confidence,
-          primaryCategory: modResult.label,
-        });
-
-        socket.emit('message-moderated', {
-          action: action,
-          message: alertMsg,
-          warningCount: user.warningCount,
-          maxWarnings: MAX_WARNINGS
-        });
-        return;
-      }
-
-      // WARNED Content
-      if (modResult.action === 'warned') {
-        user.warningCount = (user.warningCount || 0) + 1;
-        let action = 'warned';
-        let alertMsg = getViolationMessage(modResult);
-
-        if (user.warningCount >= MAX_WARNINGS) {
-          user.mutedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute mute
-          action = 'muted';
-          alertMsg = `⛔ Maximum warnings reached (${MAX_WARNINGS}/${MAX_WARNINGS}). You have been muted for 15 minutes.`;
+          if (user.warningCount >= MAX_WARNINGS) {
+            user.mutedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute mute
+            action = 'muted';
+            alertMsg = `⛔ Maximum violations reached (${MAX_WARNINGS}/${MAX_WARNINGS}). You have been muted for 15 minutes.`;
+          }
           await user.save();
 
           await ModerationLog.create({
-            room: roomId, sender: userId, originalText: text,
-            action: 'muted', score: modResult.confidence,
+            room: roomId, sender: userId, originalText: cleanText,
+            action: action, score: modResult.confidence,
             primaryCategory: modResult.label,
           });
 
           socket.emit('message-moderated', {
-            action: 'muted',
+            action: action,
             message: alertMsg,
             warningCount: user.warningCount,
             maxWarnings: MAX_WARNINGS
@@ -239,34 +220,73 @@ exports.handleSocketEvents = (io, socket) => {
           return;
         }
 
-        await user.save();
+        // WARNED Content
+        if (modResult.action === 'warned') {
+          user.warningCount = (user.warningCount || 0) + 1;
+          let action = 'warned';
+          let alertMsg = getViolationMessage(modResult);
 
-        await ModerationLog.create({
-          room: roomId, sender: userId, originalText: text,
-          action: 'warned', score: modResult.confidence,
-          primaryCategory: modResult.label,
-        });
+          if (user.warningCount >= MAX_WARNINGS) {
+            user.mutedUntil = new Date(Date.now() + 15 * 60 * 1000); // 15-minute mute
+            action = 'muted';
+            alertMsg = `⛔ Maximum warnings reached (${MAX_WARNINGS}/${MAX_WARNINGS}). You have been muted for 15 minutes.`;
+            await user.save();
 
-        socket.emit('message-moderated', {
-          action: 'warned',
-          message: alertMsg,
-          warningCount: user.warningCount,
-          maxWarnings: MAX_WARNINGS
-        });
+            await ModerationLog.create({
+              room: roomId, sender: userId, originalText: cleanText,
+              action: 'muted', score: modResult.confidence,
+              primaryCategory: modResult.label,
+            });
+
+            socket.emit('message-moderated', {
+              action: 'muted',
+              message: alertMsg,
+              warningCount: user.warningCount,
+              maxWarnings: MAX_WARNINGS
+            });
+            return;
+          }
+
+          await user.save();
+
+          await ModerationLog.create({
+            room: roomId, sender: userId, originalText: cleanText,
+            action: 'warned', score: modResult.confidence,
+            primaryCategory: modResult.label,
+          });
+
+          socket.emit('message-moderated', {
+            action: 'warned',
+            message: alertMsg,
+            warningCount: user.warningCount,
+            maxWarnings: MAX_WARNINGS
+          });
+        }
       }
 
       // --- Multilingual Translation Processing ---
-      const originalLanguage = await detectLanguage(text);
-      const targetLanguages = room.participants.map(p => p.preferredLanguage).filter(Boolean);
-      const translations = await translateForRecipients(text, originalLanguage, targetLanguages);
+      let originalLanguage = 'en';
+      let translations = [];
+      if (hasText) {
+        originalLanguage = await detectLanguage(cleanText);
+        const targetLanguages = room.participants.map(p => p.preferredLanguage).filter(Boolean);
+        translations = await translateForRecipients(cleanText, originalLanguage, targetLanguages);
+      }
 
       const message = await Message.create({
         room: roomId,
         sender: userId,
-        originalText: text,
+        originalText: cleanText,
         originalLanguage,
         translations,
         readBy: [userId],
+        media: hasMedia ? {
+          url: media.url,
+          type: media.type || 'file',
+          name: media.name || 'Attachment',
+          size: media.size || 0,
+          mimeType: media.mimeType || ''
+        } : undefined,
         moderation: {
           status: modResult.action,
           score: modResult.confidence,
@@ -292,6 +312,43 @@ exports.handleSocketEvents = (io, socket) => {
     } catch (err) {
       console.error('[SocketHandler.send-message] Error:', err);
       socket.emit('error', { message: err.message });
+    }
+  });
+
+  /**
+   * toggle-reaction
+   * Adds, removes, or toggles an emoji reaction for the user on a message
+   */
+  socket.on('toggle-reaction', async ({ messageId, roomId, emoji }) => {
+    try {
+      if (!messageId || !roomId || !emoji || !mongoose.Types.ObjectId.isValid(messageId)) return;
+
+      const message = await Message.findById(messageId);
+      if (!message || message.room.toString() !== roomId) return;
+
+      const existingIndex = message.reactions.findIndex(
+        r => r.user.toString() === userId && r.emoji === emoji
+      );
+
+      if (existingIndex > -1) {
+        // Remove reaction (toggle off)
+        message.reactions.splice(existingIndex, 1);
+      } else {
+        // Remove previous reaction from this user and add new emoji
+        message.reactions = message.reactions.filter(r => r.user.toString() !== userId);
+        message.reactions.push({ user: userId, emoji });
+      }
+
+      await message.save();
+      await message.populate('reactions.user', 'username avatar');
+
+      io.to(roomId).emit('reaction-updated', {
+        messageId: messageId.toString(),
+        roomId: roomId.toString(),
+        reactions: message.reactions
+      });
+    } catch (err) {
+      console.error('[SocketHandler.toggle-reaction] Error:', err);
     }
   });
 

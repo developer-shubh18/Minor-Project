@@ -92,17 +92,50 @@ export class ChatService {
         const senderId = msg.sender?._id || msg.sender?.id || msg.sender;
         if (senderId !== currentUserId) {
           this.markRead(msg.room);
+          if (document.hidden) {
+            this.showNotification(msg);
+          }
         }
       } else {
         // Increment unread count for non-active room
         const senderId = msg.sender?._id || msg.sender?.id || msg.sender;
         if (senderId !== currentUserId) {
           this.incrementUnread(msg.room);
+          this.showNotification(msg);
         }
       }
 
       // Update room preview in sidebar
       this.updateRoomLastMessage(msg.room, msg);
+    });
+
+    // Handle reaction update broadcast
+    this.socket.on('reaction-updated', (data: { messageId: string, roomId: string, reactions: any[] }) => {
+      const activeRoom = this.currentRoom();
+      if (activeRoom && activeRoom._id === data.roomId) {
+        this.messages.update(msgs =>
+          msgs.map(m => (m._id || m.id) === data.messageId ? { ...m, reactions: data.reactions } : m)
+        );
+      }
+    });
+
+    // Handle group details update broadcast
+    this.socket.on('group-updated', (data: { roomId: string, room: any }) => {
+      this.rooms.update(rooms =>
+        rooms.map(r => r._id === data.roomId ? { ...r, ...data.room } : r)
+      );
+      if (this.currentRoom()?._id === data.roomId) {
+        this.currentRoom.update(r => ({ ...r, ...data.room }));
+      }
+    });
+
+    // Handle member kicked notification
+    this.socket.on('member-kicked', (data: { roomId: string, groupName: string }) => {
+      this.rooms.update(rooms => rooms.filter(r => r._id !== data.roomId));
+      if (this.currentRoom()?._id === data.roomId) {
+        this.currentRoom.set(null);
+        this.messages.set([]);
+      }
     });
 
     // Handle background room updates from user channel
@@ -235,8 +268,100 @@ export class ChatService {
     });
   }
 
-  sendMessage(roomId: string, text: string) {
-    this.socket?.emit('send-message', { roomId, text });
+  sendMessage(roomId: string, text = '', media?: any) {
+    this.socket?.emit('send-message', { roomId, text, media });
+  }
+
+  uploadMedia(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return this.http.post<any>(`${this.apiUrl}/upload`, formData);
+  }
+
+  toggleReaction(messageId: string, roomId: string, emoji: string) {
+    this.socket?.emit('toggle-reaction', { messageId, roomId, emoji });
+  }
+
+  updateGroup(roomId: string, data: { name?: string, description?: string, avatar?: string }) {
+    return this.http.patch<any>(`${this.apiUrl}/groups/${roomId}`, data).pipe(
+      tap((res: any) => {
+        if (res.room) {
+          this.rooms.update(rooms => rooms.map(r => r._id === roomId ? { ...r, ...res.room } : r));
+          if (this.currentRoom()?._id === roomId) {
+            this.currentRoom.update(r => ({ ...r, ...res.room }));
+          }
+        }
+      })
+    );
+  }
+
+  removeMember(roomId: string, memberId: string) {
+    return this.http.post<any>(`${this.apiUrl}/groups/${roomId}/members/remove`, { memberId }).pipe(
+      tap((res: any) => {
+        if (res.room) {
+          this.rooms.update(rooms => rooms.map(r => r._id === roomId ? { ...r, ...res.room } : r));
+          if (this.currentRoom()?._id === roomId) {
+            this.currentRoom.update(r => ({ ...r, ...res.room }));
+          }
+        }
+      })
+    );
+  }
+
+  toggleAdmin(roomId: string, memberId: string, makeAdmin: boolean) {
+    return this.http.patch<any>(`${this.apiUrl}/groups/${roomId}/admins`, { memberId, makeAdmin }).pipe(
+      tap((res: any) => {
+        if (res.room) {
+          this.rooms.update(rooms => rooms.map(r => r._id === roomId ? { ...r, ...res.room } : r));
+          if (this.currentRoom()?._id === roomId) {
+            this.currentRoom.update(r => ({ ...r, ...res.room }));
+          }
+        }
+      })
+    );
+  }
+
+  leaveGroup(roomId: string) {
+    return this.http.post<any>(`${this.apiUrl}/groups/${roomId}/leave`, {}).pipe(
+      tap(() => {
+        this.rooms.update(rooms => rooms.filter(r => r._id !== roomId));
+        if (this.currentRoom()?._id === roomId) {
+          this.currentRoom.set(null);
+          this.messages.set([]);
+        }
+      })
+    );
+  }
+
+  requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  private showNotification(msg: any) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    const senderName = msg.sender?.username || 'New message';
+    let bodyText = msg.originalText;
+    if (!bodyText && msg.media) {
+      if (msg.media.type === 'image') bodyText = '📷 Sent a photo';
+      else if (msg.media.type === 'audio') bodyText = '🎤 Sent a voice note';
+      else bodyText = `📎 Sent a file: ${msg.media.name}`;
+    }
+
+    try {
+      const notification = new Notification(senderName, {
+        body: bodyText,
+        icon: msg.sender?.avatar || '/favicon.ico'
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } catch (e) {
+      console.warn('Web notification error:', e);
+    }
   }
 
   joinRoom(roomId: string) {

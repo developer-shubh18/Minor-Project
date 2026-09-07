@@ -7,6 +7,7 @@ const {
   translateValidation, 
   roomIdParamValidation 
 } = require('../middleware/validationMiddleware');
+const upload = require('../middleware/uploadMiddleware');
 const { 
   getRooms, 
   getMessages, 
@@ -17,7 +18,12 @@ const {
   clearRoom,
   deleteRoom,
   togglePin,
-  deleteMessage
+  deleteMessage,
+  uploadMedia,
+  updateGroup,
+  removeMember,
+  toggleAdmin,
+  leaveGroup
 } = require('../controllers/chatController');
 
 const router = express.Router();
@@ -33,6 +39,15 @@ router.post('/rooms/:roomId/pin', roomIdParamValidation, verifyRoomParticipant, 
 router.get('/rooms/:roomId/messages', roomIdParamValidation, verifyRoomParticipant, getMessages);
 router.delete('/messages/:messageId', deleteMessage);
 router.get('/users/search', searchUsers);
+
+// Media and File upload
+router.post('/upload', upload.single('file'), uploadMedia);
+
+// Group management routes
+router.patch('/groups/:roomId', roomIdParamValidation, verifyRoomParticipant, updateGroup);
+router.post('/groups/:roomId/members/remove', roomIdParamValidation, verifyRoomParticipant, removeMember);
+router.patch('/groups/:roomId/admins', roomIdParamValidation, verifyRoomParticipant, toggleAdmin);
+router.post('/groups/:roomId/leave', roomIdParamValidation, verifyRoomParticipant, leaveGroup);
 
 // Translation endpoints
 router.get('/languages', getSupportedLanguages);

@@ -58,5 +58,6 @@ Thumbs.db
 *.log
 logs/
 
-# AI Model trained artifacts
-# Server/ai-model/trained-model/ (tracked for cloud deployment)
+# Uploads
+Server/uploads/*
+!Server/uploads/.gitkeep

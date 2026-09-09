@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of, tap } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
-
+import { environment } from '../environments/environments';
 export interface SupportedLanguage {
   code: string;
   name: string;
@@ -17,7 +17,7 @@ export interface TranslationResult {
 @Injectable({ providedIn: 'root' })
 export class TranslationService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:5001/api/chat';
+  private apiUrl = `${environment.apiUrl}/api/chat`;
 
   // Cache for translations: key = `${messageId}_${targetLang}`, value = translated text
   private translationCache = new Map<string, string>();

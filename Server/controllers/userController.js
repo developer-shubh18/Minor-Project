@@ -1,4 +1,6 @@
 const User = require('../models/User');
+const Room = require('../models/Room');
+const Message = require('../models/Message');
 
 exports.getProfile = async (req, res) => {
     try {
@@ -79,7 +81,25 @@ exports.changePassword = async (req, res) => {
 
 exports.deleteAccount = async (req, res) => {
     try {
-        await User.findByIdAndDelete(req.user.id);
+        const userId = req.user.id;
+
+        // Find all rooms the user is in
+        const rooms = await Room.find({ participants: userId });
+
+        for (const room of rooms) {
+            if (room.participants.length <= 2) {
+                // DM or solo — delete room and all its messages
+                await Message.deleteMany({ room: room._id });
+                await Room.findByIdAndDelete(room._id);
+            } else {
+                // Group — just remove the user from participants
+                await Room.findByIdAndUpdate(room._id, {
+                    $pull: { participants: userId, pinnedBy: userId }
+                });
+            }
+        }
+
+        await User.findByIdAndDelete(userId);
         res.json({ status: 'success', message: 'Account deleted successfully' });
     } catch (err) {
         res.status(500).json({ status: 'error', message: err.message });

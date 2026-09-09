@@ -21,7 +21,7 @@
     @if (isSearchOpen()) {
     <div class="header-search-input">
       <input 
-        [(ngModel)]="searchQuery" 
+        [ngModel]="searchQuery()"
         (ngModelChange)="searchQuery.set($event)"
         placeholder="Search message..." 
         autoFocus

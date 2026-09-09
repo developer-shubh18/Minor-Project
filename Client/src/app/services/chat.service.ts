@@ -3,12 +3,12 @@ import { HttpClient } from '@angular/common/http';
 import { tap } from 'rxjs/operators';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
-
+import { environment } from '../environments/environments';
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
-  private apiUrl = 'http://localhost:5001/api/chat';
+  private apiUrl = `${environment.apiUrl}/api/chat`;
   private socket: Socket | null = null;
 
   rooms = signal<any[]>([]);
@@ -21,14 +21,20 @@ export class ChatService {
     const token = this.authService.token();
     if (!token || this.socket?.connected) return;
 
-    this.socket = io('http://localhost:5001', { auth: { token } });
+    this.socket = io(`${environment.apiUrl}`, { auth: { token } });
 
     this.socket.on('new-message', (msg) => {
       this.messages.update(msgs => [...msgs, msg]);
-      // Update the room's last message in sidebar
+      this.markRead(msg._id);
       this.rooms.update(rooms =>
         rooms.map(r => r._id === msg.room ? { ...r, lastMessage: msg, updatedAt: new Date().toISOString() } : r)
           .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      );
+    });
+
+    this.socket.on('message-read', ({ messageId, readBy }) => {
+      this.messages.update(msgs =>
+        msgs.map(m => m._id === messageId ? { ...m, readBy } : m)
       );
     });
 
@@ -60,6 +66,10 @@ export class ChatService {
         return newSet;
       });
     });
+  }
+
+  markRead(messageId: string) {
+    this.socket?.emit('mark-read', { messageId });
   }
 
   disconnect() {
@@ -152,7 +162,14 @@ export class ChatService {
     return this.http.post(`${this.apiUrl}/rooms/${roomId}/pin`, {}).pipe(
       tap((res: any) => {
         this.rooms.update(rooms => {
-          const updated = rooms.map(r => r._id === roomId ? { ...r, isPinned: res.isPinned } : r);
+          const userId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;
+          const updated = rooms.map(r => {
+            if (r._id !== roomId) return r;
+            const pinnedBy = res.isPinned
+              ? [...(r.pinnedBy || []), userId]
+              : (r.pinnedBy || []).filter((id: string) => id !== userId);
+            return { ...r, isPinned: res.isPinned, pinnedBy };
+          });
           // Re-sort with pinned rooms on top
           return updated.sort((a, b) => {
             const userId = this.authService.currentUser()?.id || this.authService.currentUser()?._id;

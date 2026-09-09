@@ -116,6 +116,7 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
     if (this.shouldScroll) {
       this.scrollToBottom();
     }
+    this.triggerPendingTranslations();
   }
 
   scrollToBottom() {
@@ -160,34 +161,33 @@ export class ChatWindowComponent implements AfterViewChecked, OnInit {
       // Then check client-side cache
       const cached = this.translationService.getCachedTranslation(msgId, userLang);
       if (cached) return cached;
-      
-      // If global is on but no translation yet, we could trigger it, 
-      // but for better UX we just return original until it's ready.
-      if (this.translationService.translateAll()) {
-         this.ensureTranslationReady(msg);
-      }
     }
 
     return msg.originalText;
   }
 
   /** Background translate if missing when Translate All is active */
-  private ensureTranslationReady(msg: any) {
-    const msgId = msg._id;
+  private triggerPendingTranslations() {
+    if (!this.translationService.translateAll()) return;
     const userLang = this.authService.currentUser()?.preferredLanguage || 'en';
-    
-    if (this.translationService.getCachedTranslation(msgId, userLang)) return;
-    if (this.translationService.isLoading(msgId)) return;
-    if (!this.canTranslate(msg)) return;
-
-    this.translationService.setLoading(msgId, true);
-    this.translationService.translate(msg.originalText, userLang, msg.originalLanguage).subscribe({
-      next: (result) => {
-        this.translationService.cacheTranslation(msgId, userLang, result.translatedText);
-        this.translationService.setLoading(msgId, false);
-      },
-      error: () => this.translationService.setLoading(msgId, false)
-    });
+    for (const group of this.groupedMessages()) {
+      for (const msg of group.messages) {
+        if (
+          this.canTranslate(msg) &&
+          !this.translationService.getCachedTranslation(msg._id, userLang) &&
+          !this.translationService.isLoading(msg._id)
+        ) {
+          this.translationService.setLoading(msg._id, true);
+          this.translationService.translate(msg.originalText, userLang, msg.originalLanguage).subscribe({
+            next: (result) => {
+              this.translationService.cacheTranslation(msg._id, userLang, result.translatedText);
+              this.translationService.setLoading(msg._id, false);
+            },
+            error: () => this.translationService.setLoading(msg._id, false)
+          });
+        }
+      }
+    }
   }
 
   /** Check if the message language differs from user's preferred language */

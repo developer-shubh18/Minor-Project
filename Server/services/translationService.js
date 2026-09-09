@@ -91,7 +91,6 @@ exports.translateForRecipients = async (text, sourceLanguage, targetLanguages) =
  * Get supported languages (for UI dropdown)
  */
 exports.getSupportedLanguages = async () => {
-  // Common languages supported by Google Translate
   return [
     { code: 'en', name: 'English' },
     { code: 'es', name: 'Spanish' },
@@ -106,6 +105,14 @@ exports.getSupportedLanguages = async () => {
     { code: 'ar', name: 'Arabic' },
     { code: 'ko', name: 'Korean' },
     { code: 'tr', name: 'Turkish' },
-    { code: 'vi', name: 'Vietnamese' }
+    { code: 'vi', name: 'Vietnamese' },
+    { code: 'nl', name: 'Dutch' },
+    { code: 'pl', name: 'Polish' },
+    { code: 'sv', name: 'Swedish' },
+    { code: 'el', name: 'Greek' },
+    { code: 'th', name: 'Thai' },
+    { code: 'id', name: 'Indonesian' },
+    { code: 'bn', name: 'Bengali' },
+    { code: 'ur', name: 'Urdu' }
   ];
 };

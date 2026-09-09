@@ -13,7 +13,6 @@ exports.getRooms = async (req, res) => {
       })
       .sort('-updatedAt');
     
-    // Sort pinned rooms to the top
     const sortedRooms = rooms.sort((a, b) => {
       const aPinned = a.pinnedBy?.includes(req.user.id);
       const bPinned = b.pinnedBy?.includes(req.user.id);
@@ -27,51 +26,6 @@ exports.getRooms = async (req, res) => {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
-
-// ... existing createRoom, getMessages ...
-
-// Clear all messages in a room
-exports.clearRoom = async (req, res) => {
-  try {
-    await Message.deleteMany({ room: req.params.roomId });
-    await Room.findByIdAndUpdate(req.params.roomId, { $unset: { lastMessage: 1 } });
-    res.json({ status: 'success', message: 'Chat cleared' });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-};
-
-// Delete a room and its messages
-exports.deleteRoom = async (req, res) => {
-  try {
-    await Message.deleteMany({ room: req.params.roomId });
-    await Room.findByIdAndDelete(req.params.roomId);
-    res.json({ status: 'success', message: 'Chat deleted' });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-};
-
-// Toggle pin for a room
-exports.togglePin = async (req, res) => {
-  try {
-    const room = await Room.findById(req.params.roomId);
-    if (!room) return res.status(404).json({ status: 'error', message: 'Room not found' });
-
-    const isPinned = room.pinnedBy.includes(req.user.id);
-    if (isPinned) {
-      room.pinnedBy = room.pinnedBy.filter(id => id.toString() !== req.user.id.toString());
-    } else {
-      room.pinnedBy.push(req.user.id);
-    }
-    
-    await room.save();
-    res.json({ status: 'success', isPinned: !isPinned });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-};
-
 
 exports.createRoom = async (req, res) => {
   try {
@@ -112,14 +66,72 @@ exports.getMessages = async (req, res) => {
   }
 };
 
+// Clear all messages in a room
+exports.clearRoom = async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.roomId);
+    if (!room) return res.status(404).json({ status: 'error', message: 'Room not found' });
+    if (!room.participants.map(p => p.toString()).includes(req.user.id.toString())) {
+      return res.status(403).json({ status: 'error', message: 'Not a participant of this room' });
+    }
+
+    await Message.deleteMany({ room: req.params.roomId });
+    await Room.findByIdAndUpdate(req.params.roomId, { $unset: { lastMessage: 1 } });
+    res.json({ status: 'success', message: 'Chat cleared' });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// Delete a room and its messages
+exports.deleteRoom = async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.roomId);
+    if (!room) return res.status(404).json({ status: 'error', message: 'Room not found' });
+    if (!room.participants.map(p => p.toString()).includes(req.user.id.toString())) {
+      return res.status(403).json({ status: 'error', message: 'Not a participant of this room' });
+    }
+
+    await Message.deleteMany({ room: req.params.roomId });
+    await Room.findByIdAndDelete(req.params.roomId);
+    res.json({ status: 'success', message: 'Chat deleted' });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
+// Toggle pin for a room
+exports.togglePin = async (req, res) => {
+  try {
+    const room = await Room.findById(req.params.roomId);
+    if (!room) return res.status(404).json({ status: 'error', message: 'Room not found' });
+    if (!room.participants.map(p => p.toString()).includes(req.user.id.toString())) {
+      return res.status(403).json({ status: 'error', message: 'Not a participant of this room' });
+    }
+
+    const isPinned = room.pinnedBy.map(id => id.toString()).includes(req.user.id.toString());
+    if (isPinned) {
+      room.pinnedBy = room.pinnedBy.filter(id => id.toString() !== req.user.id.toString());
+    } else {
+      room.pinnedBy.push(req.user.id);
+    }
+
+    await room.save();
+    res.json({ status: 'success', isPinned: !isPinned });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+};
+
 exports.searchUsers = async (req, res) => {
   try {
     const { q } = req.query;
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const users = await User.find({
       _id: { $ne: req.user.id },
       $or: [
-        { username: new RegExp(q, 'i') },
-        { email: new RegExp(q, 'i') }
+        { username: new RegExp(escaped, 'i') },
+        { email: new RegExp(escaped, 'i') }
       ]
     }).select('username email avatar isOnline').limit(10);
     res.json({ status: 'success', users });
@@ -128,7 +140,6 @@ exports.searchUsers = async (req, res) => {
   }
 };
 
-// Get supported languages from LibreTranslate
 exports.getSupportedLanguages = async (req, res) => {
   try {
     const languages = await fetchLanguages();
@@ -138,7 +149,6 @@ exports.getSupportedLanguages = async (req, res) => {
   }
 };
 
-// On-demand translate a single message
 exports.translateMessage = async (req, res) => {
   try {
     const { text, targetLanguage, sourceLanguage } = req.body;
@@ -147,10 +157,8 @@ exports.translateMessage = async (req, res) => {
       return res.status(400).json({ status: 'error', message: 'text and targetLanguage are required' });
     }
 
-    // Detect source language if not provided
     const detectedSource = sourceLanguage || await detectLanguage(text);
     
-    // If source and target are the same, return original
     if (detectedSource === targetLanguage) {
       return res.json({
         status: 'success',
@@ -176,4 +184,3 @@ exports.translateMessage = async (req, res) => {
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
-

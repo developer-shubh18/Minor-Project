@@ -10,6 +10,7 @@ exports.handleSocketEvents = (io, socket) => {
     socket.join(roomId);
     await User.findByIdAndUpdate(userId, { isOnline: true });
     io.to(roomId).emit('user-joined', { userId, username: socket.user.username });
+    io.emit('user-online', { userId });
   });
 
   socket.on('leave-room', (roomId) => {
@@ -38,6 +39,11 @@ exports.handleSocketEvents = (io, socket) => {
       await Room.findByIdAndUpdate(roomId, { lastMessage: message._id });
 
       io.to(roomId).emit('new-message', message);
+
+      // Mark message as read for sender immediately
+      await Message.findByIdAndUpdate(message._id, {
+        $addToSet: { readBy: userId }
+      });
     } catch (err) {
       socket.emit('error', { message: err.message });
     }
@@ -47,7 +53,23 @@ exports.handleSocketEvents = (io, socket) => {
     socket.to(roomId).emit('user-typing', { userId, username: socket.user.username, isTyping });
   });
 
+  socket.on('mark-read', async ({ messageId }) => {
+    try {
+      await Message.findByIdAndUpdate(messageId, {
+        $addToSet: { readBy: userId }
+      });
+      const message = await Message.findById(messageId).select('readBy room');
+      io.to(message.room.toString()).emit('message-read', {
+        messageId,
+        readBy: message.readBy
+      });
+    } catch (err) {
+      socket.emit('error', { message: err.message });
+    }
+  });
+
   socket.on('disconnect', async () => {
     await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen: new Date() });
+    io.emit('user-offline', { userId });
   });
 };

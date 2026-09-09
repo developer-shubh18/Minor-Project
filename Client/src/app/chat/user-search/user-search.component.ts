@@ -34,8 +34,12 @@ export class UserSearchComponent {
   startChat(user: any) {
     this.chatService.createRoom([user._id]).subscribe({
       next: (res: any) => {
-        this.searchResults = [];
-        this.searchQuery = '';
+        // Use setTimeout to avoid ExpressionChangedAfterItHasBeenCheckedError
+        setTimeout(() => {
+          this.searchResults = [];
+          this.searchQuery = '';
+        });
+        
         this.chatService.getRooms().subscribe({
           next: () => {
             if (res.room) {

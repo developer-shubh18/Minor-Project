@@ -33,12 +33,9 @@
   <div class="hero-blob blob-3"></div>
 
   <!-- Floating language labels -->
-  <div class="floating-lang lang-1">🇪🇸 Hola</div>
-  <div class="floating-lang lang-2">🇫🇷 Bonjour</div>
-  <div class="floating-lang lang-3">🇯🇵 こんにちは</div>
-  <div class="floating-lang lang-4">🇩🇪 Hallo</div>
-  <div class="floating-lang lang-5">🇮🇳 नमस्ते</div>
-  <div class="floating-lang lang-6">🇸🇦 مرحبا</div>
+  @for (slot of visibleSlots; track slot.class) {
+    <div class="floating-lang" [ngClass]="slot.class" [class.fading]="slot.isFading">{{ slot.lang }}</div>
+  }
 
   <div class="hero-content">
     <div class="hero-badge">🌐 Multilingual Chat Platform</div>

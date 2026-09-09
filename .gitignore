@@ -13,6 +13,7 @@ bazel-out/
 
 # Angular
 .angular/cache
+Client/.angular/cache
 
 # Environment files
 .env

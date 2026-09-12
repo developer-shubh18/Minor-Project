@@ -21,8 +21,8 @@ const fs = require('fs');
 const { translateText } = require('./translationService');
 
 const MODEL_DIR = path.join(__dirname, '..', 'ai-model', 'trained-model');
-const BLOCK_THRESHOLD = 0.65;
-const WARN_THRESHOLD = 0.40;
+const BLOCK_THRESHOLD = 0.75;
+const WARN_THRESHOLD = 0.55;
 
 let model = null;
 let config = null;
@@ -71,9 +71,19 @@ async function loadModel() {
   }
 }
 
-// ---- Encode (must match training) ----
+// ---- Preprocessing & Tokenization (must match training) ----
+function normalizeChatText(text) {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .replace(/(.)\1{2,}/g, '$1$1')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim();
+}
+
 function encodeText(text) {
-  const words = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+  const norm = normalizeChatText(text);
+  const words = norm.split(/\s+/).filter(w => w.length > 0);
   const encoded = words.map(w => config.vocab[w] || 1);
   if (encoded.length >= config.maxSeqLength) return encoded.slice(0, config.maxSeqLength);
   return [...encoded, ...new Array(config.maxSeqLength - encoded.length).fill(0)];
@@ -93,11 +103,15 @@ async function predictText(textToPredict) {
   const maxIdx = probs.indexOf(Math.max(...probs));
   const label = config.labels[maxIdx];
   const confidence = probs[maxIdx];
+  const cleanScore = scores['clean'] || 0;
 
   let action = 'clean';
   if (label !== 'clean') {
-    if (confidence >= BLOCK_THRESHOLD) action = 'blocked';
-    else if (confidence >= WARN_THRESHOLD) action = 'warned';
+    if (confidence >= BLOCK_THRESHOLD && confidence > cleanScore + 0.20) {
+      action = 'blocked';
+    } else if (confidence >= WARN_THRESHOLD && confidence > cleanScore + 0.15) {
+      action = 'warned';
+    }
   }
 
   return { action, label, confidence: Math.round(confidence * 100) / 100, scores };

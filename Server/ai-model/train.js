@@ -3,7 +3,7 @@
  * Content Moderation AI — Training Script
  * ============================================
  * 
- * Trains a TensorFlow.js CNN text classifier.
+ * Trains a TensorFlow.js 1D-CNN text classifier.
  * 
  * Categories:  0=clean, 1=sexual, 2=hate_cultural, 3=threat
  * 
@@ -11,16 +11,6 @@
  *   1. JSON  →  { "data": [{ "text": "...", "label": "..." }] }
  *   2. CSV   →  text,label  (header row required)
  *   3. TXT   →  label<TAB>text  (one per line)
- * 
- * HOW TO ADD DATA:
- *   Option 1: Drop files into ai-model/training-data/
- *   Option 2: Pass a URL directly:
- *     node ai-model/train.js --url https://example.com/dataset.csv
- *     node ai-model/train.js --url https://raw.githubusercontent.com/user/repo/data.json
- *     node ai-model/train.js --url https://kaggle.com/.../download  (direct download link)
- * 
- *   You can pass multiple URLs:
- *     node ai-model/train.js --url URL1 --url URL2
  * 
  * Run:    node ai-model/train.js
  * Output: ai-model/trained-model/
@@ -33,10 +23,10 @@ const path = require('path');
 const axios = require('axios');
 
 // ---- Config ----
-const VOCAB_SIZE = 2000;
+const VOCAB_SIZE = 2500;
 const MAX_SEQ_LENGTH = 30;
-const EMBEDDING_DIM = 32;
-const EPOCHS = 25;
+const EMBEDDING_DIM = 64;
+const EPOCHS = 35;
 const BATCH_SIZE = 32;
 const DATA_DIR = path.join(__dirname, 'training-data');
 const MODEL_DIR = path.join(__dirname, 'trained-model');
@@ -84,25 +74,17 @@ async function downloadFromURL(url) {
 }
 
 // ============================================================
-// HUGGING FACE DATASETS — download via REST API (no Python!)
+// HUGGING FACE DATASETS — download via REST API
 // ============================================================
-// Usage: node ai-model/train.js --hf jjmachan/NSFW-reddit --limit 1000
-//
-// Supported datasets with auto-mapping:
-//   jjmachan/NSFW-reddit        → over_18 field → sexual
-//   any dataset with text+label columns → auto-detected
-// ============================================================
-
 async function downloadFromHuggingFace(datasetName, limit) {
   console.log(`   🤗 Hugging Face dataset: ${datasetName}`);
   console.log(`      Fetching up to ${limit} rows...\n`);
 
   const API_BASE = 'https://datasets-server.huggingface.co';
   const allSamples = [];
-  const batchSize = 100; // HF API max per request
+  const batchSize = 100;
 
   try {
-    // Fetch in batches
     for (let offset = 0; offset < limit; offset += batchSize) {
       const fetchCount = Math.min(batchSize, limit - offset);
       const url = `${API_BASE}/rows?dataset=${encodeURIComponent(datasetName)}&config=default&split=train&offset=${offset}&length=${fetchCount}`;
@@ -113,10 +95,8 @@ async function downloadFromHuggingFace(datasetName, limit) {
       });
 
       const data = response.data;
-
       if (!data.rows || data.rows.length === 0) break;
 
-      // Auto-detect how to map this dataset's columns
       const rows = data.rows.map(r => r.row);
       const mapped = mapHuggingFaceRows(rows, datasetName);
       allSamples.push(...mapped);
@@ -134,13 +114,11 @@ async function downloadFromHuggingFace(datasetName, limit) {
       return;
     }
 
-    // Save as JSON
     const fileName = `hf_${datasetName.replace('/', '_')}_${Date.now()}.json`;
     const fileData = { data: allSamples };
     fs.writeFileSync(path.join(DATA_DIR, fileName), JSON.stringify(fileData, null, 2), 'utf-8');
     console.log(`   ✅ Saved: ${fileName} (${allSamples.length} samples)\n`);
 
-    // Print label distribution
     const counts = {};
     allSamples.forEach(s => { counts[s.label] = (counts[s.label] || 0) + 1; });
     for (const [label, count] of Object.entries(counts)) {
@@ -152,10 +130,6 @@ async function downloadFromHuggingFace(datasetName, limit) {
   }
 }
 
-/**
- * Map HuggingFace dataset rows to our { text, label } format.
- * Different datasets have different column structures — this handles auto-mapping.
- */
 function mapHuggingFaceRows(rows, datasetName) {
   const mapped = [];
 
@@ -163,40 +137,30 @@ function mapHuggingFaceRows(rows, datasetName) {
     let text = null;
     let label = null;
 
-    // --- jjmachan/NSFW-reddit: has "title", "over_18", "subreddit" ---
     if (row.title !== undefined && row.over_18 !== undefined) {
       text = row.title;
       label = row.over_18 ? 'sexual' : 'clean';
-    }
-    // --- Datasets with "text" + "label" columns ---
-    else if (row.text && row.label !== undefined) {
+    } else if (row.text && row.label !== undefined) {
       text = row.text;
-      // Handle numeric labels (0=clean, 1=toxic, etc.)
       if (typeof row.label === 'number') {
         label = row.label === 0 ? 'clean' : 'hate_cultural';
       } else {
         label = String(row.label).toLowerCase();
       }
-    }
-    // --- Datasets with "comment_text" + toxicity columns (Jigsaw-style) ---
-    else if (row.comment_text) {
+    } else if (row.comment_text) {
       text = row.comment_text;
       if (row.toxic || row.severe_toxic) label = 'hate_cultural';
       else if (row.threat) label = 'threat';
       else if (row.obscene) label = 'sexual';
       else label = 'clean';
-    }
-    // --- Datasets with "content" or "message" field ---
-    else if (row.content || row.message) {
+    } else if (row.content || row.message) {
       text = row.content || row.message;
       label = row.label || row.class || row.category || 'clean';
       if (typeof label !== 'string') label = String(label);
       label = label.toLowerCase();
     }
 
-    // Only keep if we got both text and a valid label
     if (text && label && text.trim().length > 3) {
-      // Normalize label to our known labels
       label = normalizeLabel(label);
       if (label) {
         mapped.push({ text: text.trim().substring(0, 300), label });
@@ -207,26 +171,19 @@ function mapHuggingFaceRows(rows, datasetName) {
   return mapped;
 }
 
-/**
- * Normalize external labels to our 4 categories
- */
 function normalizeLabel(label) {
   const map = {
-    // Clean
     'clean': 'clean', 'safe': 'clean', 'normal': 'clean', 'sfw': 'clean',
     'not_offensive': 'clean', 'none': 'clean', 'neutral': 'clean', '0': 'clean',
-    // Sexual
     'sexual': 'sexual', 'nsfw': 'sexual', 'porn': 'sexual', 'obscene': 'sexual',
     'sexual_explicit': 'sexual', 'adult': 'sexual', 'xxx': 'sexual',
-    // Hate / Cultural
     'hate_cultural': 'hate_cultural', 'hate': 'hate_cultural', 'hate_speech': 'hate_cultural',
     'toxic': 'hate_cultural', 'offensive': 'hate_cultural', 'racism': 'hate_cultural',
     'sexism': 'hate_cultural', 'discrimination': 'hate_cultural', 'insult': 'hate_cultural',
     'identity_hate': 'hate_cultural', 'severe_toxic': 'hate_cultural', '1': 'hate_cultural',
-    // Threat
     'threat': 'threat', 'violence': 'threat', 'dangerous': 'threat', 'bully': 'threat',
   };
-  return map[label] || null;  // null = skip unknown labels
+  return map[label] || null;
 }
 
 // ============================================================
@@ -250,10 +207,9 @@ function loadAllDatasets() {
       } else if (ext === '.txt') {
         samples = loadTXT(filePath);
       } else {
-        continue; // skip unsupported files
+        continue;
       }
 
-      // Validate: only keep samples with known labels
       const valid = samples.filter(s => LABELS.includes(s.label));
       allSamples.push(...valid);
       console.log(`   📄 ${file} → ${valid.length} samples loaded`);
@@ -269,22 +225,18 @@ function loadAllDatasets() {
   return allSamples;
 }
 
-/** Load JSON: { "data": [{ "text": "...", "label": "..." }] } */
 function loadJSON(filePath) {
   const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  // Support both { data: [...] } and plain [...] formats
   const items = Array.isArray(raw) ? raw : (raw.data || []);
   return items
     .filter(item => item.text && item.label)
     .map(item => ({ text: String(item.text).trim(), label: String(item.label).trim().toLowerCase() }));
 }
 
-/** Load CSV: text,label (first row = header) */
 function loadCSV(filePath) {
   const lines = fs.readFileSync(filePath, 'utf-8').split('\n').filter(l => l.trim());
   if (lines.length < 2) return [];
 
-  // Detect column order from header
   const header = lines[0].toLowerCase().split(',').map(h => h.trim());
   const textIdx = header.findIndex(h => h === 'text' || h === 'message' || h === 'content' || h === 'comment');
   const labelIdx = header.findIndex(h => h === 'label' || h === 'class' || h === 'category');
@@ -295,7 +247,6 @@ function loadCSV(filePath) {
   }
 
   return lines.slice(1).map(line => {
-    // Handle quoted CSV fields
     const cols = parseCSVLine(line);
     if (cols.length > Math.max(textIdx, labelIdx)) {
       return { text: cols[textIdx].trim(), label: cols[labelIdx].trim().toLowerCase() };
@@ -304,7 +255,6 @@ function loadCSV(filePath) {
   }).filter(Boolean);
 }
 
-/** Parse a single CSV line (handles quoted fields with commas) */
 function parseCSVLine(line) {
   const cols = [];
   let current = '';
@@ -318,7 +268,6 @@ function parseCSVLine(line) {
   return cols;
 }
 
-/** Load TXT: label<TAB>text (one per line) */
 function loadTXT(filePath) {
   const lines = fs.readFileSync(filePath, 'utf-8').split('\n').filter(l => l.trim());
   return lines.map(line => {
@@ -329,10 +278,22 @@ function loadTXT(filePath) {
 }
 
 // ============================================================
-// TOKENIZER
+// TOKENIZER & PREPROCESSING
 // ============================================================
+function normalizeChatText(text) {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    // Normalize repeated characters: "hiiiiii" -> "hii", "yessss" -> "yess"
+    .replace(/(.)\1{2,}/g, '$1$1')
+    // Remove non-alphanumeric (keep whitespace)
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim();
+}
+
 function tokenize(text) {
-  return text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 0);
+  const norm = normalizeChatText(text);
+  return norm.split(/\s+/).filter(w => w.length > 0);
 }
 
 function buildVocab(samples) {
@@ -356,10 +317,9 @@ function encodeText(text, vocab) {
 }
 
 // ============================================================
-// MAIN
+// MAIN TRAINING PIPELINE
 // ============================================================
 async function train() {
-  // Step 0: Download from URLs or Hugging Face if provided
   const args = parseArgs();
 
   if (args.urls.length > 0) {
@@ -376,16 +336,26 @@ async function train() {
     }
   }
 
-  // Load data from all files in training-data/
   console.log('📂 Loading training data from all files...\n');
-  const samples = loadAllDatasets();
+  let samples = loadAllDatasets();
 
   if (samples.length === 0) {
     console.error('❌ No training data found! Add files to ai-model/training-data/');
     process.exit(1);
   }
 
-  // Print summary
+  // Add synthetic UNK / neutral chat samples to reinforce clean baseline for unknown tokens
+  const syntheticClean = [
+    { text: 'unknownword xyz abc qwerty', label: 'clean' },
+    { text: 'asdf jkl zxcv bnm', label: 'clean' },
+    { text: 'unseenname said hello', label: 'clean' },
+    { text: 'randomtoken randomtoken', label: 'clean' },
+    { text: 'just chatting here', label: 'clean' },
+    { text: 'typing some text', label: 'clean' },
+    { text: 'test user message', label: 'clean' }
+  ];
+  samples = samples.concat(syntheticClean);
+
   const labelCounts = {};
   for (const s of samples) { labelCounts[s.label] = (labelCounts[s.label] || 0) + 1; }
   console.log(`\n   Total samples: ${samples.length}`);
@@ -393,12 +363,10 @@ async function train() {
     console.log(`   • ${label}: ${count}`);
   }
 
-  // Build vocab
   console.log('\n📖 Building vocabulary...');
   const vocab = buildVocab(samples);
   console.log(`   Vocabulary size: ${Object.keys(vocab).length}`);
 
-  // Encode
   console.log('\n🔢 Encoding texts...');
   const shuffled = [...samples].sort(() => Math.random() - 0.5);
   const xData = shuffled.map(s => encodeText(s.text, vocab));
@@ -408,18 +376,27 @@ async function train() {
   const yTensor = tf.oneHot(tf.tensor1d(yData, 'int32'), LABELS.length);
   console.log(`   X shape: [${xTensor.shape}]  Y shape: [${yTensor.shape}]`);
 
-  // Build model
-  console.log('\n🏗️  Building neural network...');
+  // CNN Architecture: Embedding -> Conv1D -> GlobalMaxPooling1D -> Dense -> Dropout -> Dense
+  console.log('\n🏗️  Building CNN text classifier neural network...');
   const model = tf.sequential();
-  model.add(tf.layers.embedding({ inputDim: Object.keys(vocab).length, outputDim: EMBEDDING_DIM, inputLength: MAX_SEQ_LENGTH }));
-  model.add(tf.layers.globalAveragePooling1d());
+  model.add(tf.layers.embedding({
+    inputDim: Object.keys(vocab).length,
+    outputDim: EMBEDDING_DIM,
+    inputLength: MAX_SEQ_LENGTH
+  }));
+  model.add(tf.layers.conv1d({
+    filters: 64,
+    kernelSize: 3,
+    activation: 'relu',
+    padding: 'same'
+  }));
+  model.add(tf.layers.globalMaxPooling1d());
   model.add(tf.layers.dense({ units: 32, activation: 'relu' }));
-  model.add(tf.layers.dropout({ rate: 0.2 }));
+  model.add(tf.layers.dropout({ rate: 0.25 }));
   model.add(tf.layers.dense({ units: LABELS.length, activation: 'softmax' }));
-  model.compile({ optimizer: tf.train.adam(0.005), loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
+  model.compile({ optimizer: tf.train.adam(0.003), loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
   model.summary();
 
-  // Train
   console.log('\n🚀 Training started...\n');
   await model.fit(xTensor, yTensor, {
     epochs: EPOCHS, batchSize: BATCH_SIZE, validationSplit: 0.15, shuffle: true,
@@ -432,7 +409,6 @@ async function train() {
     }
   });
 
-  // Save model
   console.log('\n💾 Saving model...');
   if (!fs.existsSync(MODEL_DIR)) fs.mkdirSync(MODEL_DIR, { recursive: true });
 
@@ -448,7 +424,6 @@ async function train() {
     return { modelArtifactsInfo: { dateSaved: new Date(), modelTopologyType: 'JSON' } };
   }));
 
-  // Save config
   fs.writeFileSync(path.join(MODEL_DIR, 'config.json'), JSON.stringify({
     vocab, labels: LABELS, maxSeqLength: MAX_SEQ_LENGTH,
     vocabSize: Object.keys(vocab).length, trainingSamples: samples.length,
@@ -457,23 +432,28 @@ async function train() {
 
   console.log(`   ✅ Model saved to: ${MODEL_DIR}/`);
 
-  // Quick test
+  // Verification Battery
   console.log('\n🧪 Test predictions:\n');
   const tests = [
-    'hello how are you doing today',
+    'Hiiiii shubh',
+    'hi yash..',
+    'what r u doing?',
+    'hello',
+    'how are you doing today',
+    'ok sure let us meet tomorrow',
     'send me your nudes right now',
-    'all muslims are terrorists',
+    'all people of that race are filthy',
     'i will kill you and your family',
     'lets grab dinner this weekend',
-    'women belong in the kitchen not work',
     'what time is the class tomorrow',
-    'you are so hot come to my bed',
+    'fuck you',
+    'i love you'
   ];
   for (const text of tests) {
     const input = tf.tensor2d([encodeText(text, vocab)], [1, MAX_SEQ_LENGTH], 'int32');
     const probs = await model.predict(input).data();
     const maxIdx = probs.indexOf(Math.max(...probs));
-    console.log(`   ${maxIdx === 0 ? '✅' : '⛔'} "${text}" → ${LABELS[maxIdx]} (${(probs[maxIdx] * 100).toFixed(1)}%)`);
+    console.log(`   ${maxIdx === 0 ? '✅ CLEAN' : '⛔ FLAG '} "${text}" → ${LABELS[maxIdx]} (${(probs[maxIdx] * 100).toFixed(1)}%) | Clean: ${(probs[0] * 100).toFixed(1)}%`);
     input.dispose();
   }
 

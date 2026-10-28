@@ -61,3 +61,4 @@ logs/
 # Uploads
 Server/uploads/*
 !Server/uploads/.gitkeep
+.agents/*

@@ -62,3 +62,4 @@ logs/
 Server/uploads/*
 !Server/uploads/.gitkeep
 .agents/*
+skills-lock.json
